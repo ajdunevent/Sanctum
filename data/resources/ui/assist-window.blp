@@ -1,0 +1,170 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SanctumAssistWindow: Adw.Window {
+  title: _("Assist");
+  default-width: 420;
+  default-height: 560;
+  width-request: 360;
+  height-request: 294;
+
+  ShortcutController {
+    Shortcut {
+      trigger: "Escape";
+      action: "action(window.close)";
+    }
+  }
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      title-widget: MenuButton pipeline_button {
+        tooltip-text: _("Choose Assistant");
+        always-show-arrow: true;
+        sensitive: false;
+
+        child: Adw.WindowTitle window_title {
+          title: _("Assist");
+        };
+
+        styles [
+          "flat",
+        ]
+      };
+
+      [start]
+      ToggleButton conversation_button {
+        icon-name: "speaking-head-disabled-symbolic";
+        tooltip-text: _("Conversation Mode");
+        toggled => $on_conversation_toggled() swapped;
+
+        accessibility {
+          label: _("Conversation Mode");
+        }
+      }
+    }
+
+    content: Overlay {
+      child: Image {
+        icon-name: "sanctum-assist-symbolic";
+        pixel-size: 128;
+        halign: center;
+        valign: center;
+        accessible-role: presentation;
+
+        styles [
+          "assist-watermark",
+        ]
+      };
+
+      [overlay]
+      ScrolledWindow scroller {
+        hscrollbar-policy: never;
+        vexpand: true;
+
+        child: Adw.Clamp {
+          maximum-size: 600;
+
+          child: Box transcript {
+            orientation: vertical;
+            spacing: 8;
+            margin-start: 12;
+            margin-end: 12;
+            margin-top: 12;
+            margin-bottom: 12;
+            valign: end;
+          };
+        };
+      }
+    };
+
+    [bottom]
+    Box {
+      orientation: vertical;
+
+      Revealer voice_revealer {
+        transition-type: slide_up;
+
+        child: Label voice_label {
+          margin-top: 6;
+
+          styles [
+            "dim-label",
+            "caption-heading",
+          ]
+        };
+      }
+
+      Box {
+        spacing: 6;
+        margin-start: 12;
+        margin-end: 12;
+        margin-top: 6;
+        margin-bottom: 12;
+
+        ToggleButton speaker_button {
+          icon-name: "audio-volume-high-symbolic";
+          tooltip-text: _("Spoken Replies");
+          valign: center;
+          toggled => $on_speaker_toggled() swapped;
+
+          accessibility {
+            label: _("Spoken Replies");
+          }
+
+          styles [
+            "circular",
+            "voice-toggle",
+          ]
+        }
+
+        Box {
+          hexpand: true;
+          valign: center;
+
+          Entry entry {
+            hexpand: true;
+            placeholder-text: _("Ask Assist");
+            activate => $on_send() swapped;
+          }
+
+          Button send_button {
+            icon-name: "paper-plane-symbolic";
+            tooltip-text: _("Send");
+            clicked => $on_send() swapped;
+
+            accessibility {
+              label: _("Send");
+            }
+
+            styles [
+              "suggested-action",
+              "assist-send",
+            ]
+          }
+
+          styles [
+            "linked",
+            "assist-composer",
+          ]
+        }
+
+        ToggleButton voice_button {
+          icon-name: "audio-input-microphone-symbolic";
+          tooltip-text: _("Voice");
+          valign: center;
+          toggled => $on_voice_toggled() swapped;
+
+          accessibility {
+            label: _("Voice");
+          }
+
+          styles [
+            "circular",
+            "voice-toggle",
+          ]
+        }
+      }
+    }
+  };
+}

@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="@gettext_package@">
+  <schema id="@app_id@" path="/net/dunevent/Sanctum/">
+    <key name="window-width" type="i">
+      <default>720</default>
+      <summary>Window width</summary>
+    </key>
+    <key name="window-height" type="i">
+      <default>720</default>
+      <summary>Window height</summary>
+    </key>
+    <key name="is-maximized" type="b">
+      <default>false</default>
+      <summary>Window maximized state</summary>
+    </key>
+    <key name="server" type="s">
+      <default>""</default>
+      <summary>Identifier of the signed-in server</summary>
+      <description>Its settings live under /net/dunevent/Sanctum/servers/ID/ in the Server schema. Empty when signed out.</description>
+    </key>
+    <key name="web-rendering" type="s">
+      <choices>
+        <choice value="gpu"/>
+        <choice value="cpu"/>
+        <choice value="software"/>
+      </choices>
+      <default>"gpu"</default>
+      <summary>How WebKit draws the Home Assistant interface</summary>
+      <description>gpu paints and composites on the GPU. cpu paints on CPU threads and composites on the GPU. software turns hardware acceleration off entirely.</description>
+    </key>
+    <key name="web-reduce-motion" type="b">
+      <default>false</default>
+      <summary>Turn off animations, smooth scrolling and page transitions</summary>
+    </key>
+    <key name="web-show-fps" type="b">
+      <default>false</default>
+      <summary>Draw a frame rate meter over the page</summary>
+    </key>
+    <key name="web-hardware-acceleration" type="b">
+      <default>true</default>
+      <summary>Moved to the Server schema; read once to migrate: Draw Home Assistant with the GPU</summary>
+    </key>
+    <key name="internal-url" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Address used on home Wi-Fi networks</summary>
+    </key>
+    <key name="external-url" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Address used away from home</summary>
+    </key>
+    <key name="home-networks" type="as">
+      <default>[]</default>
+      <summary>Moved to the Server schema; read once to migrate: Wi-Fi network names (SSIDs) where the internal address is used</summary>
+    </key>
+    <key name="device-name" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Name this device is registered with in Home Assistant</summary>
+    </key>
+    <key name="last-path" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Home Assistant page shown last</summary>
+    </key>
+    <key name="accent-color" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Accent color taken from the Home Assistant theme</summary>
+    </key>
+    <key name="assist-default-pipeline" type="s">
+      <default>"@preferred"</default>
+      <summary>Moved to the Server schema; read once to migrate: Assistant used when Assist opens</summary>
+    </key>
+    <key name="assist-last-pipeline" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Last used assistant</summary>
+    </key>
+    <key name="disabled-sensors" type="as">
+      <default>[]</default>
+      <summary>Moved to the Server schema; read once to migrate: Sensors that are not reported</summary>
+    </key>
+    <key name="location-enabled" type="b">
+      <default>false</default>
+      <summary>Moved to the Server schema; read once to migrate: Report location to Home Assistant</summary>
+    </key>
+    <key name="server-url" type="s">
+      <default>""</default>
+      <summary>Moved to the Server schema; read once to migrate: Home Assistant base URL</summary>
+    </key>
+    <key name="trusted-certificates" type="as">
+      <default>[]</default>
+      <summary>Accepted server certificates</summary>
+      <description>Entries of the form "host:port SHA256-fingerprint" for certificates the system does not trust.</description>
+    </key>
+    <key name="run-in-background" type="b">
+      <default>false</default>
+      <summary>Keep running after the last window closes</summary>
+      <description>Keeps the Home Assistant connection open for notifications, sensors and fast Assist launch.</description>
+    </key>
+    <key name="swipe-navigation" type="b">
+      <default>false</default>
+      <summary>Go back and forward in the page history by swiping sideways</summary>
+    </key>
+    <key name="pull-to-refresh" type="b">
+      <default>true</default>
+      <summary>Reload the page by pulling down at its top on a touch screen</summary>
+    </key>
+    <key name="server-accent" type="b">
+      <default>true</default>
+      <summary>Use the server's primary color as Sanctum's accent</summary>
+      <description>Off uses the system accent color.</description>
+    </key>
+    <key name="integrated-titlebar" type="b">
+      <default>false</default>
+      <summary>Use Home Assistant's toolbar as the titlebar</summary>
+      <description>Hides Sanctum's header bar. The toolbar moves the window, and the window buttons are drawn over its end.</description>
+    </key>
+    <key name="web-zoom" type="d">
+      <range min="0.3" max="3.0"/>
+      <default>1.0</default>
+      <summary>Zoom level of the Home Assistant interface</summary>
+    </key>
+    <key name="keep-web-loaded-minutes" type="u">
+      <default>30</default>
+      <summary>Minutes a closed window keeps Home Assistant loaded</summary>
+      <description>After this long the page is released and loads again when the window opens. 0 keeps it loaded.</description>
+    </key>
+    <key name="keep-web-loaded" type="b">
+      <default>false</default>
+      <summary>Keep Home Assistant loaded while the window is closed</summary>
+      <description>Only while running in the background. Reopening is instant, at the cost of the memory the page uses.</description>
+    </key>
+    <key name="start-at-login" type="b">
+      <default>false</default>
+      <summary>Start hidden when the session starts</summary>
+      <description>Takes effect only while run-in-background is enabled.</description>
+    </key>
+    <key name="assist-conversation-mode" type="b">
+      <default>false</default>
+      <summary>Listen again after each spoken Assist reply</summary>
+      <description>Turns on spoken replies. Turning off spoken replies or stopping the microphone turns it off. Stops when a turn hears nothing.</description>
+    </key>
+    <key name="scanner-turns" type="u">
+      <range min="0" max="3"/>
+      <default>0</default>
+      <summary>Clockwise quarter turns of the code scanner's camera preview</summary>
+    </key>
+    <key name="assist-dismissal" type="b">
+      <default>true</default>
+      <summary>End conversation mode on dismissal phrases</summary>
+      <description>Assist closes after the reply when everything said is made of assist-dismissal-phrases.</description>
+    </key>
+    <key name="assist-dismissal-phrases" type="as">
+      <default>["goodbye", "thank you", "thanks", "stop", "dismissed", "you're dismissed", "that's all", "that'll be all", "that was all", "that's it", "i'm done", "we're done"]</default>
+      <summary>Phrases that end conversation mode</summary>
+    </key>
+    <key name="assist-conversation-notice" type="b">
+      <default>true</default>
+      <summary>Explain conversation mode when it is turned on in Assist</summary>
+    </key>
+    <key name="assistant-button-voice" type="b">
+      <default>false</default>
+      <summary>Start listening when the assistant button opens Assist</summary>
+    </key>
+    <key name="assist-speak-replies" type="b">
+      <default>true</default>
+      <summary>Speak Assist replies to spoken questions</summary>
+    </key>
+    <key name="listening-tone" type="s">
+      <choices>
+        <choice value="bloop"/>
+        <choice value="prompt"/>
+        <choice value="drop"/>
+        <choice value="none"/>
+      </choices>
+      <default>"prompt"</default>
+      <summary>Sound played when voice Assist starts listening</summary>
+      <description>Bloop and drop were earlier sounds and now play prompt.</description>
+    </key>
+    <key name="use-voice-assistant" type="b">
+      <default>false</default>
+      <summary>Start listening when Assist opens</summary>
+      <description>Only when a microphone is available and the assistant supports speech. The Voice toggle in the Assist window stops listening.</description>
+    </key>
+    <key name="sensor-interval" type="u">
+      <range min="15" max="3600"/>
+      <default>60</default>
+      <summary>Seconds between CPU and memory readings</summary>
+      <description>Polling pauses while the screen is off.</description>
+    </key>
+    <key name="location-accuracy" type="s">
+      <choices>
+        <choice value="city"/>
+        <choice value="street"/>
+        <choice value="exact"/>
+      </choices>
+      <default>"street"</default>
+      <summary>Location accuracy requested from the system</summary>
+    </key>
+    <key name="location-interval" type="u">
+      <range min="60" max="3600"/>
+      <default>300</default>
+      <summary>Minimum seconds between location updates</summary>
+    </key>
+    <key name="device-commands" type="b">
+      <default>true</default>
+      <summary>Accept device commands from Home Assistant</summary>
+      <description>Commands such as command_volume_level and command_flashlight arrive as notifications. When off they are ignored.</description>
+    </key>
+    <key name="disabled-commands" type="as">
+      <default>[]</default>
+      <summary>Device commands that are ignored</summary>
+      <description>Message names, such as command_flashlight, of commands the user turned off.</description>
+    </key>
+  </schema>
+  <schema id="@app_id@.Server">
+    <key name="url" type="s">
+      <default>""</default>
+      <summary>Home Assistant base URL used to sign in</summary>
+      <description>Credentials for this server live in the keyring under this address.</description>
+    </key>
+    <key name="internal-url" type="s">
+      <default>""</default>
+      <summary>Address used on home networks</summary>
+      <description>Empty uses the sign-in address.</description>
+    </key>
+    <key name="external-url" type="s">
+      <default>""</default>
+      <summary>Address used away from home</summary>
+      <description>Empty uses the Nabu Casa remote address when available, otherwise the sign-in address.</description>
+    </key>
+    <key name="home-networks" type="as">
+      <default>[]</default>
+      <summary>Networks where the internal address is used</summary>
+      <description>Wi-Fi network names (SSIDs), NetworkManager connection names, or interface names such as wg0.</description>
+    </key>
+    <key name="app-mode" type="s">
+      <choices>
+        <choice value="companion"/>
+        <choice value="frontend"/>
+      </choices>
+      <default>"companion"</default>
+      <summary>Whether Sanctum works as a companion app or only shows Home Assistant</summary>
+      <description>A companion app is registered with Home Assistant's Mobile App integration for sensors, location, notifications and commands.</description>
+    </key>
+    <key name="device-name" type="s">
+      <default>""</default>
+      <summary>Name this device is registered with in Home Assistant</summary>
+      <description>Chosen during sign-in. Empty uses the host name. Home Assistant names the notify action after it.</description>
+    </key>
+    <key name="last-path" type="s">
+      <default>""</default>
+      <summary>Home Assistant page shown last</summary>
+      <description>Reopened when the window opens. Empty opens the frontend's default dashboard.</description>
+    </key>
+    <key name="accent-color" type="s">
+      <default>""</default>
+      <summary>Accent color taken from the Home Assistant theme</summary>
+      <description>The frontend's primary color, kept so Sanctum's own windows use it before the page loads. Empty uses the system accent.</description>
+    </key>
+    <key name="header-height" type="i">
+      <default>0</default>
+      <summary>Height of the frontend's toolbar in pixels</summary>
+      <description>Kept so the window button section opens at the toolbar's height before the page loads. 0 uses the button height.</description>
+    </key>
+    <key name="assist-default-pipeline" type="s">
+      <default>"@preferred"</default>
+      <summary>Assistant used when Assist opens</summary>
+      <description>A pipeline ID, "@preferred" to follow the server's preferred assistant, or empty to use the last used assistant.</description>
+    </key>
+    <key name="assist-last-pipeline" type="s">
+      <default>""</default>
+      <summary>Last used assistant</summary>
+    </key>
+    <key name="disabled-sensors" type="as">
+      <default>[]</default>
+      <summary>Sensors that are not reported</summary>
+      <description>Unique IDs of sensors the user turned off. They stay registered with Home Assistant as disabled entities.</description>
+    </key>
+    <key name="location-enabled" type="b">
+      <default>false</default>
+      <summary>Report location to Home Assistant</summary>
+    </key>
+  </schema>
+</schemalist>

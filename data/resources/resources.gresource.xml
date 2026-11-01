@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/net/dunevent/Sanctum/">
+    <file compressed="true" preprocess="xml-stripblanks" alias="ui/assist-window.ui">assist-window.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="ui/onboarding.ui">onboarding.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="ui/preferences-dialog.ui">preferences-dialog.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="ui/window.ui">window.ui</file>
+    <file compressed="true">style.css</file>
+    <file alias="sounds/listening-prompt.flac">../sounds/listening-prompt.flac</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="icons/scalable/apps/sanctum-symbolic.svg">../icons/hicolor/symbolic/apps/net.dunevent.Sanctum-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="icons/scalable/actions/paper-plane-symbolic.svg">../icons/actions/paper-plane-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="icons/scalable/actions/sanctum-assist-symbolic.svg">../icons/actions/sanctum-assist-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="icons/scalable/actions/speaking-head-symbolic.svg">../icons/actions/speaking-head-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="icons/scalable/actions/speaking-head-disabled-symbolic.svg">../icons/actions/speaking-head-disabled-symbolic.svg</file>
+  </gresource>
+</gresources>

@@ -1,0 +1,271 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SanctumPreferencesDialog: Adw.PreferencesDialog {
+  Adw.PreferencesPage {
+    title: _("General");
+    icon-name: "preferences-system-symbolic";
+
+    Adw.PreferencesGroup {
+      title: _("Home Assistant Interface");
+
+      Adw.SwitchRow accent_row {
+        title: _("Accent Color from Server");
+        subtitle: _("Sanctum's buttons and highlights use the Home Assistant theme's primary color");
+      }
+
+      Adw.SwitchRow titlebar_row {
+        title: _("Integrated Titlebar (Experimental)");
+        subtitle: _("Hides Sanctum's header bar; Home Assistant's toolbar moves the window and holds the window buttons");
+      }
+
+      Adw.SwitchRow pull_row {
+        title: _("Pull to Refresh");
+        subtitle: _("Pull down at the top of a page and hold briefly to reload it");
+      }
+
+      Adw.SwitchRow swipe_row {
+        title: _("Swipe Navigation");
+        subtitle: _("Swipe sideways to go back or forward through pages");
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Performance");
+      description: _("If pages scroll or draw slowly, try another way of drawing them");
+
+      Adw.ComboRow rendering_row {
+        title: _("Drawing");
+        model: StringList {
+          strings [
+            _("GPU"),
+            _("CPU Painting"),
+            _("No Acceleration"),
+          ]
+        };
+      }
+
+      Adw.SwitchRow motion_row {
+        title: _("Reduce Motion");
+        subtitle: _("Turn off animations, smooth scrolling and page transitions");
+      }
+
+      Adw.SwitchRow fps_row {
+        title: _("Show Frame Rate");
+        subtitle: _("Frames per second and the longest frame, shown over the page");
+      }
+
+      Adw.ActionRow {
+        title: _("Rendering Information");
+        subtitle: _("What WebKit draws with, such as the GPU driver");
+        activatable: true;
+        activated => $on_rendering_info_activated() swapped;
+
+        [suffix]
+        Image {
+          icon-name: "go-next-symbolic";
+          accessible-role: presentation;
+        }
+      }
+    }
+
+    Adw.PreferencesGroup background_group {
+      title: _("Background");
+
+      Adw.SwitchRow background_row {
+        title: _("Run in Background");
+        subtitle: _("Keep running after the window closes");
+      }
+
+      Adw.SwitchRow keep_loaded_row {
+        title: _("Keep Loaded in Background");
+        subtitle: _("Reopens instantly, but uses memory while the window is closed");
+
+        styles [
+          "nested-row",
+        ]
+      }
+
+      Adw.ComboRow unload_row {
+        title: _("Release After");
+        subtitle: _("How long a closed window keeps the page");
+
+        model: StringList {
+          strings [
+            _("10 Minutes"),
+            _("30 Minutes"),
+            _("1 Hour"),
+            _("4 Hours"),
+            _("Never"),
+          ]
+        };
+
+        styles [
+          "nested-row-2",
+        ]
+      }
+
+      Adw.SwitchRow login_row {
+        title: _("Start at Login");
+        subtitle: _("Start hidden when you log in");
+
+        styles [
+          "nested-row",
+        ]
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Assist");
+
+      Adw.ComboRow default_pipeline_row {
+        title: _("Default Assistant");
+        subtitle: _("Used when Assist opens");
+      }
+
+      Adw.SwitchRow launcher_row {
+        title: _("Assist in App Grid");
+        subtitle: _("A separate launcher that opens straight into Assist");
+        visible: false;
+      }
+
+      Adw.SwitchRow voice_row {
+        title: _("Use Voice Assistant");
+        subtitle: _("Start listening when Assist opens");
+      }
+
+      Adw.SwitchRow tone_row {
+        title: _("Listening Sound");
+        subtitle: _("A soft tone when Assist starts listening");
+      }
+
+      Adw.SwitchRow conversation_row {
+        title: _("Conversation Mode");
+        subtitle: _("Listen again after each spoken reply, without the listening sound");
+      }
+
+      Adw.ActionRow dismissal_row {
+        title: _("Detect Dismissal Phrases");
+        subtitle: _("Saying only phrases like “that's all, goodbye” closes Assist after the reply");
+        activatable-widget: dismissal_switch;
+
+        [suffix]
+        Button {
+          icon-name: "document-edit-symbolic";
+          tooltip-text: _("Edit Phrases");
+          valign: center;
+          clicked => $on_edit_dismissals() swapped;
+
+          accessibility {
+            label: _("Edit Phrases");
+          }
+
+          styles [
+            "flat",
+          ]
+        }
+
+        [suffix]
+        Switch dismissal_switch {
+          valign: center;
+        }
+
+        styles [
+          "nested-row",
+        ]
+      }
+
+      Adw.SwitchRow conversation_notice_row {
+        title: _("Warn Before Turning On Voice");
+        subtitle: _("Ask first when Conversation Mode in Assist would turn on the microphone or spoken replies");
+
+        styles [
+          "nested-row",
+        ]
+      }
+    }
+
+    Adw.PreferencesGroup button_group {
+      title: _("Assistant Button");
+      description: _("Opens Assist from the FuriOS assistant button. GNOME Settings lists only its built-in actions, so it will not show this binding.");
+      visible: false;
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Server");
+      description: _("The internal URL is used on home networks and the external URL elsewhere. Empty fields use the sign-in address. A home network can be a Wi-Fi name, a connection name or an interface such as wg0.");
+
+      Adw.ActionRow server_row {
+        title: _("Signed In To");
+
+        styles [
+          "property",
+        ]
+      }
+
+      Adw.ComboRow mode_row {
+        title: _("App Mode");
+        visible: false;
+
+        model: StringList {
+          strings [
+            _("Companion App"),
+            _("Front End"),
+          ]
+        };
+      }
+
+      Adw.ActionRow device_row {
+        title: _("Device Name");
+        visible: false;
+
+        styles [
+          "property",
+        ]
+      }
+
+      Adw.EntryRow internal_row {
+        title: _("Internal URL");
+        input-purpose: url;
+        input-hints: no_spellcheck | no_emoji;
+        show-apply-button: true;
+        apply => $on_internal_applied() swapped;
+      }
+
+      Adw.EntryRow external_row {
+        title: _("External URL");
+        input-purpose: url;
+        input-hints: no_spellcheck | no_emoji;
+        show-apply-button: true;
+        apply => $on_external_applied() swapped;
+      }
+
+      Adw.ExpanderRow networks_row {
+        title: _("Home Networks");
+
+        Adw.ButtonRow add_network_row {
+          title: _("_Add Current Network");
+          use-underline: true;
+          start-icon-name: "list-add-symbolic";
+          activated => $on_add_network_activated() swapped;
+        }
+
+        Adw.EntryRow add_network_entry {
+          title: _("Add a Wi-Fi, Connection or Interface Name");
+          show-apply-button: true;
+          apply => $on_network_entered() swapped;
+        }
+      }
+
+      Adw.ButtonRow sign_out_row {
+        title: _("_Sign Out");
+        use-underline: true;
+        activated => $on_sign_out_activated() swapped;
+
+        styles [
+          "destructive-action",
+        ]
+      }
+    }
+  }
+}

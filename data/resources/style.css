@@ -1,0 +1,129 @@
+.assist-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+.assist-bubble.user {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+.assist-bubble.reply {
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+}
+
+.assist-note {
+  margin: 6px 0;
+}
+
+.assist-bubble.error {
+  background-color: color-mix(in srgb, var(--error-bg-color) 15%, transparent);
+  color: var(--error-color);
+}
+
+.entity-tile {
+  min-width: 120px;
+  padding: 12px;
+  min-height: 84px;
+  border-radius: 12px;
+}
+
+.entity-tile.active {
+  background-color: color-mix(in srgb, var(--accent-bg-color) 18%, var(--card-bg-color));
+}
+
+.entity-tile.active image {
+  color: var(--accent-color);
+}
+
+.details-icon.active {
+  color: var(--accent-color);
+}
+
+.color-swatch {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 2px solid alpha(currentColor, 0.15);
+}
+
+.swatch-red { background: hsl(0, 100%, 50%); }
+.swatch-orange { background: hsl(30, 100%, 50%); }
+.swatch-yellow { background: hsl(55, 100%, 50%); }
+.swatch-green { background: hsl(120, 100%, 40%); }
+.swatch-teal { background: hsl(180, 100%, 40%); }
+.swatch-blue { background: hsl(230, 100%, 55%); }
+.swatch-purple { background: hsl(275, 100%, 55%); }
+.swatch-pink { background: hsl(320, 100%, 60%); }
+
+scale.color-temperature trough {
+  background-image: linear-gradient(to right, #ffa757, #fff4e8, #cbdcff);
+}
+
+scale.color-temperature highlight {
+  background: none;
+}
+
+.media-transport {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.media-play {
+  min-width: 64px;
+  min-height: 64px;
+}
+
+.voice-toggle {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.voice-toggle.speaking {
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+.assist-composer > entry,
+.assist-composer > button {
+  min-height: 44px;
+}
+
+.assist-composer > button.assist-send {
+  min-width: 44px;
+  padding: 0;
+}
+
+.voice-toggle:checked {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+.voice-toggle.listening {
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0% { box-shadow: 0 0 0 0 alpha(var(--accent-bg-color), 0.6); }
+  100% { box-shadow: 0 0 0 10px alpha(var(--accent-bg-color), 0); }
+}
+
+row.nested-row {
+  background-color: color-mix(in srgb, var(--card-shade-color) 50%, transparent);
+}
+
+row.nested-row-2 {
+  background-color: var(--card-shade-color);
+}
+
+row.nested-row > box.header {
+  padding-left: 24px;
+}
+
+row.nested-row-2 > box.header {
+  padding-left: 36px;
+}
+
+.assist-watermark {
+  opacity: 0.06;
+}

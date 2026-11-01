@@ -1,0 +1,18 @@
+[Desktop Entry]
+Name=Sanctum
+Comment=Control and monitor your Home Assistant home
+Type=Application
+Exec=sanctum
+Terminal=false
+Categories=Utility;GTK;
+Keywords=Home Assistant;smart home;automation;assist;
+# Translators: Do NOT translate or transliterate this text (this is an icon file name)!
+Icon=@icon@
+StartupNotify=true
+DBusActivatable=true
+X-Purism-FormFactor=Workstation;Mobile;
+Actions=assist;
+
+[Desktop Action assist]
+Name=Assist
+Exec=sanctum --assist

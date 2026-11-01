@@ -1,0 +1,631 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SanctumOnboarding: Adw.Bin {
+  child: Adw.NavigationView navigation {
+    Adw.NavigationPage {
+      tag: "welcome";
+      title: _("Welcome");
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-title: false;
+        }
+
+        content: Adw.StatusPage {
+          icon-name: "sanctum-symbolic";
+          title: _("Welcome to Sanctum");
+          description: _("Connect to your Home Assistant server to get started");
+
+          child: Adw.Clamp {
+            maximum-size: 400;
+
+            child: Box {
+              orientation: vertical;
+              spacing: 24;
+
+              ListBox {
+                selection-mode: none;
+
+                styles [
+                  "boxed-list",
+                ]
+
+                Adw.EntryRow url_row {
+                  title: _("Server Address");
+                  input-purpose: url;
+                  input-hints: no_spellcheck | no_emoji;
+                  activates-default: true;
+                  entry-activated => $on_url_activated() swapped;
+                }
+              }
+
+              Button continue_button {
+                label: _("_Continue");
+                use-underline: true;
+                halign: center;
+                clicked => $on_continue_clicked() swapped;
+
+                styles [
+                  "pill",
+                  "suggested-action",
+                ]
+              }
+
+              Box found_box {
+                orientation: vertical;
+                spacing: 12;
+                visible: false;
+
+                Label {
+                  label: _("Found on This Network");
+                  xalign: 0;
+
+                  styles [
+                    "heading",
+                  ]
+                }
+
+                ListBox found_list {
+                  selection-mode: none;
+                  row-activated => $on_found_activated() swapped;
+
+                  styles [
+                    "boxed-list",
+                  ]
+                }
+              }
+            };
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "login";
+      title: _("Sign In");
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          [end]
+          MenuButton {
+            icon-name: "view-more-symbolic";
+            tooltip-text: _("Other Ways to Sign In");
+            menu-model: login_menu;
+
+            accessibility {
+              label: _("Other Ways to Sign In");
+            }
+          }
+        }
+
+        content: Adw.Bin login_holder {};
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "browser";
+      title: _("Sign In");
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {}
+
+        content: Adw.StatusPage {
+          icon-name: "web-browser-symbolic";
+          title: _("Continue in Your Browser");
+          description: _("Sign in on the page that opened, then return here");
+
+          child: Box {
+            orientation: vertical;
+            spacing: 24;
+            halign: center;
+
+            Adw.Spinner {
+              width-request: 32;
+              height-request: 32;
+            }
+
+            Button {
+              label: _("_Open Browser Again");
+              use-underline: true;
+              clicked => $on_reopen_browser_clicked() swapped;
+
+              styles [
+                "pill",
+              ]
+            }
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "token";
+      title: _("Access Token");
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {}
+
+        content: Adw.PreferencesPage {
+          Adw.PreferencesGroup {
+            description: _("Tokens are created in your Home Assistant profile, on the Security tab");
+
+            Adw.PasswordEntryRow token_row {
+              title: _("Access Token");
+              activates-default: true;
+              entry-activated => $on_token_submit() swapped;
+            }
+          }
+
+          Adw.PreferencesGroup {
+            Button token_button {
+              label: _("_Sign In");
+              use-underline: true;
+              halign: center;
+              clicked => $on_token_submit() swapped;
+
+              styles [
+                "pill",
+                "suggested-action",
+              ]
+            }
+          }
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "mode";
+      title: _("App Mode");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-title: false;
+        }
+
+        content: Adw.StatusPage {
+          icon-name: "sanctum-symbolic";
+          title: _("Choose How Sanctum Works");
+          description: _("Sanctum can function as a full companion app, providing sensor data to and receiving notifications and commands from Home Assistant, or it can serve as a dedicated front end app, allowing you to view and toggle Home Assistant without the advanced app features. Which would you prefer? You can change this at any time.");
+
+          child: Adw.Clamp {
+            maximum-size: 400;
+
+            child: ListBox {
+              selection-mode: none;
+
+              styles [
+                "boxed-list",
+              ]
+
+              Adw.ActionRow {
+                title: _("Companion App");
+                subtitle: _("Sensors, location, notifications and commands");
+                activatable: true;
+                activated => $on_mode_companion() swapped;
+
+                [suffix]
+                Image {
+                  icon-name: "go-next-symbolic";
+                  accessible-role: presentation;
+                }
+              }
+
+              Adw.ActionRow {
+                title: _("Front End");
+                subtitle: _("View and control Home Assistant only");
+                activatable: true;
+                activated => $on_mode_frontend() swapped;
+
+                [suffix]
+                Image {
+                  icon-name: "go-next-symbolic";
+                  accessible-role: presentation;
+                }
+              }
+            };
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "name";
+      title: _("Device Name");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-title: false;
+        }
+
+        content: Adw.StatusPage {
+          icon-name: "mdi-cellphone-symbolic";
+          title: _("Name This Device");
+          description: _("How would you like to name this device? Home Assistant uses the name for its entities and its notify action.");
+
+          child: Adw.Clamp {
+            maximum-size: 400;
+
+            child: Box {
+              orientation: vertical;
+              spacing: 24;
+
+              ListBox {
+                selection-mode: none;
+
+                styles [
+                  "boxed-list",
+                ]
+
+                Adw.EntryRow name_row {
+                  title: _("Device Name");
+                  activates-default: true;
+                  entry-activated => $on_name_submit() swapped;
+                }
+              }
+
+              Button name_button {
+                label: _("_Continue");
+                use-underline: true;
+                halign: center;
+                clicked => $on_name_submit() swapped;
+
+                styles [
+                  "pill",
+                  "suggested-action",
+                ]
+              }
+            };
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "finishing";
+      title: _("Setting Up");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-back-button: false;
+          show-title: false;
+        }
+
+        content: Adw.StatusPage {
+          title: _("Setting Up");
+          description: _("Registering this device with Home Assistant");
+
+          child: Adw.Spinner {
+            halign: center;
+            width-request: 32;
+            height-request: 32;
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "connection";
+      title: _("Addresses");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-back-button: false;
+          show-title: false;
+        }
+
+        content: Adw.PreferencesPage {
+          Adw.PreferencesGroup {
+            Box {
+              orientation: vertical;
+              spacing: 12;
+
+              Image {
+                icon-name: "network-wireless-symbolic";
+                pixel-size: 64;
+                accessible-role: presentation;
+
+                styles [
+                  "dimmed",
+                ]
+              }
+
+              Label {
+                label: _("Check the Addresses");
+                wrap: true;
+                justify: center;
+
+                styles [
+                  "title-1",
+                ]
+              }
+
+              Label {
+                label: _("Sanctum uses the internal address on home networks and the external address everywhere else. These were found on your server; correct them or leave either empty.");
+                wrap: true;
+                justify: center;
+              }
+            }
+          }
+
+          Adw.PreferencesGroup {
+            Adw.EntryRow internal_row {
+              title: _("Internal Address");
+              input-purpose: url;
+              input-hints: no_spellcheck | no_emoji;
+            }
+
+            Adw.EntryRow external_row {
+              title: _("External Address");
+              input-purpose: url;
+              input-hints: no_spellcheck | no_emoji;
+            }
+          }
+
+          Adw.PreferencesGroup network_group {
+            Adw.SwitchRow home_row {
+              subtitle: _("Use the internal address while connected to it");
+            }
+          }
+
+          Adw.PreferencesGroup {
+            description: _("Addresses and home networks can be changed later in Preferences.");
+          }
+        };
+
+        [bottom]
+        Box {
+          halign: center;
+          spacing: 12;
+          margin-top: 12;
+          margin-bottom: 12;
+
+          Button {
+            label: _("_Skip");
+            use-underline: true;
+            clicked => $on_connection_skipped() swapped;
+
+            styles [
+              "pill",
+            ]
+          }
+
+          Button connection_button {
+            label: _("_Continue");
+            use-underline: true;
+            clicked => $on_connection_done() swapped;
+
+            styles [
+              "pill",
+              "suggested-action",
+            ]
+          }
+        }
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "background";
+      title: _("Background");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-back-button: false;
+          show-title: false;
+        }
+
+        content: Adw.PreferencesPage {
+          Adw.PreferencesGroup {
+            Box {
+              orientation: vertical;
+              spacing: 12;
+
+              Image {
+                icon-name: "mdi-bullhorn-symbolic";
+                pixel-size: 64;
+                accessible-role: presentation;
+
+                styles [
+                  "dimmed",
+                ]
+              }
+
+              Label {
+                label: _("Keep Sanctum Running?");
+                wrap: true;
+                justify: center;
+
+                styles [
+                  "title-1",
+                ]
+              }
+
+              Label {
+                label: _("Notifications and device commands from Home Assistant only arrive while Sanctum is running. In the background, Sanctum also keeps reporting sensors and opens Assist faster, at the cost of some battery.");
+                wrap: true;
+                justify: center;
+              }
+            }
+          }
+
+          Adw.PreferencesGroup {
+            Adw.SwitchRow background_row {
+              title: _("Run in Background");
+              subtitle: _("Keep running after the window closes");
+            }
+
+            Adw.SwitchRow login_row {
+              title: _("Start at Login");
+              subtitle: _("Start hidden when you log in");
+            }
+          }
+
+          Adw.PreferencesGroup {
+            description: _("Both can be changed later in Preferences.");
+          }
+        };
+
+        [bottom]
+        Box {
+          halign: center;
+          margin-top: 12;
+          margin-bottom: 12;
+
+          Button {
+            label: _("_Continue");
+            use-underline: true;
+            clicked => $on_background_done() swapped;
+
+            styles [
+              "pill",
+              "suggested-action",
+            ]
+          }
+        }
+      };
+    }
+
+    Adw.NavigationPage {
+      tag: "intro";
+      title: _("Welcome");
+      can-pop: false;
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          show-back-button: false;
+          show-title: false;
+        }
+
+        content: Adw.PreferencesPage {
+          Adw.PreferencesGroup {
+            Box {
+              orientation: vertical;
+              spacing: 12;
+
+              Image intro_icon {
+                pixel-size: 96;
+                accessible-role: presentation;
+
+                styles [
+                  "icon-dropshadow",
+                ]
+              }
+
+              Label {
+                label: _("Welcome to Sanctum");
+                wrap: true;
+                justify: center;
+
+                styles [
+                  "title-1",
+                ]
+              }
+
+              Label {
+                label: _("Sanctum is ready. Adjust it any time from the menu, under Preferences.");
+                wrap: true;
+                justify: center;
+              }
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: _("What You Can Set Up");
+
+            Adw.ActionRow intro_sensors_row {
+              title: _("Sensors and Location");
+              subtitle: _("Choose what this device reports to Home Assistant");
+
+              [prefix]
+              Image {
+                icon-name: "mdi-gauge-symbolic";
+                accessible-role: presentation;
+              }
+            }
+
+            Adw.ActionRow intro_controls_row {
+              title: _("Controls");
+              subtitle: _("Choose which device commands automations may send, such as volume or the flashlight");
+
+              [prefix]
+              Image {
+                icon-name: "mdi-cellphone-cog-symbolic";
+                accessible-role: presentation;
+              }
+            }
+
+            Adw.ActionRow intro_background_row {
+              title: _("Background and Assist");
+              subtitle: _("Keep notifications arriving after the window closes, and pick the default assistant");
+
+              [prefix]
+              Image {
+                icon-name: "preferences-system-symbolic";
+                accessible-role: presentation;
+              }
+            }
+
+            Adw.ActionRow {
+              title: _("Interface");
+              subtitle: _("Zoom, drawing, motion and the integrated titlebar");
+
+              [prefix]
+              Image {
+                icon-name: "preferences-desktop-display-symbolic";
+                accessible-role: presentation;
+              }
+            }
+          }
+
+        };
+
+        [bottom]
+        Box {
+          halign: center;
+          margin-top: 12;
+          margin-bottom: 12;
+
+          Button {
+            label: _("_Open Home Assistant");
+            use-underline: true;
+            clicked => $on_intro_done() swapped;
+
+            styles [
+              "pill",
+              "suggested-action",
+            ]
+          }
+        }
+      };
+    }
+  };
+}
+
+menu login_menu {
+  section {
+    item {
+      label: _("Sign In With _Browser");
+      action: "onboarding.browser";
+    }
+
+    item {
+      label: _("Use an Access _Token");
+      action: "onboarding.token";
+    }
+  }
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@app_id@</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Sanctum</name>
+  <summary>Control and monitor your Home Assistant home</summary>
+  <description>
+    <p>
+      Sanctum is a Home Assistant companion built for Linux phones, tablets and desktops.
+    </p>
+    <ul>
+      <li>Use the full Home Assistant interface, signed in with the app's own account</li>
+      <li>Pull down to reload on touch screens, and optionally use Home Assistant's toolbar as the titlebar</li>
+      <li>Report device sensors such as battery, network, media and location to Home Assistant</li>
+      <li>Let automations control volume, screen, flashlight, ringer mode and Bluetooth</li>
+      <li>Receive Home Assistant notifications with actions</li>
+      <li>Talk to Assist by text or voice, including from the FuriOS assistant button</li>
+    </ul>
+  </description>
+  <url type="homepage">https://dunevent.net</url>
+  <developer id="net.dunevent">
+    <name translate="no">AJ</name>
+  </developer>
+  <launchable type="desktop-id">@app_id@.desktop</launchable>
+  <translation type="gettext">@gettext_package@</translation>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-10-21">
+      <description>
+        <p>Initial development snapshot.</p>
+      </description>
+    </release>
+  </releases>
+</component>

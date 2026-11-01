@@ -1,0 +1,92 @@
+{
+    "id": "net.dunevent.Sanctum",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "50",
+    "sdk": "org.gnome.Sdk",
+    "sdk-extensions": [
+        "org.freedesktop.Sdk.Extension.rust-stable"
+    ],
+    "command": "sanctum",
+    "finish-args": [
+        "--share=network",
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--device=dri",
+        "--socket=pulseaudio",
+        "--system-talk-name=org.freedesktop.NetworkManager",
+        "--system-talk-name=org.freedesktop.Avahi",
+        "--system-talk-name=org.freedesktop.UPower",
+        "--system-talk-name=org.freedesktop.ModemManager1",
+        "--system-talk-name=org.freedesktop.login1",
+        "--system-talk-name=org.bluez",
+        "--talk-name=org.gnome.Mutter.DisplayConfig",
+        "--talk-name=io.FuriOS.AssistantButton",
+        "--talk-name=org.sigxcpu.Feedback",
+        "--talk-name=io.furios.Flashlightd",
+        "--talk-name=org.mpris.MediaPlayer2.*",
+        "--filesystem=xdg-config/assistant-button:create",
+        "--env=G_MESSAGES_DEBUG=sanctum",
+        "--env=RUST_BACKTRACE=1"
+    ],
+    "build-options": {
+        "append-path": "/usr/lib/sdk/rust-stable/bin",
+        "build-args": [
+            "--share=network"
+        ],
+        "env": {
+            "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": "sparse",
+            "CARGO_TERM_COLOR": "always",
+            "RUST_BACKTRACE": "1"
+        }
+    },
+    "cleanup": [
+        "/include",
+        "/lib/pkgconfig",
+        "/man",
+        "/share/doc",
+        "/share/gtk-doc",
+        "/share/man",
+        "/share/pkgconfig",
+        "*.la",
+        "*.a"
+    ],
+    "modules": [
+        {
+            "name": "blueprint-compiler",
+            "buildsystem": "meson",
+            "cleanup": [
+                "*"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://download.gnome.org/sources/blueprint-compiler/0.22/blueprint-compiler-0.22.2.tar.xz",
+                    "sha256": "231d72efbac931c235ac3e022fe94982095c20d88721d9a8dcf60152f2017e07"
+                }
+            ]
+        },
+        {
+            "name": "sanctum",
+            "buildsystem": "meson",
+            "config-opts": [
+                "-Dprofile=development"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../",
+                    "skip": [
+                        ".flatpak",
+                        ".flatpak-builder",
+                        "_build",
+                        "build",
+                        "build-arm64",
+                        "dist",
+                        "target"
+                    ]
+                }
+            ]
+        }
+    ]
+}

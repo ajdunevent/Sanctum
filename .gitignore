@@ -1,0 +1,13 @@
+/target/
+/_build/
+/build/
+/.flatpak/
+/.flatpak-builder/
+/flatpak-build/
+/repo/
+/vendor/
+src/config.rs
+*.ui.in~
+/dist/
+/.no-sync
+src/.no-sync

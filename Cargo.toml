@@ -1,0 +1,31 @@
+[package]
+name = "sanctum"
+version = "0.1.0"
+authors = ["AJ <aj@dunevent.net>"]
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+description = "Adaptive Home Assistant companion for mobile Linux"
+publish = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[dependencies]
+adw = { package = "libadwaita", version = "0.9", features = ["v1_7"] }
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std", "async-await-macro"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+gio = { version = "0.22", features = ["v2_70"] }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
+gst = { package = "gstreamer", version = "0.25" }
+gst-app = { package = "gstreamer-app", version = "0.25" }
+libsecret = { version = "0.9", features = ["v0_21"] }
+rxing = { version = "0.9", default-features = false, features = ["decoders", "full_barcode_format_support", "encoding_rs"] }
+log = { version = "0.4", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+soup = { package = "soup3", version = "0.9" }
+url = "2"
+webkit = { package = "webkit6", version = "0.6", features = ["v2_48"] }

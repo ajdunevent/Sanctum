@@ -1,0 +1,239 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SanctumWindow: Adw.ApplicationWindow {
+  width-request: 360;
+  height-request: 294;
+
+  content: Adw.ToastOverlay toast_overlay {
+    child: Stack stack {
+      transition-type: crossfade;
+
+      StackPage {
+        name: "loading";
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {
+            show-title: false;
+          }
+
+          content: Adw.Spinner {
+            halign: center;
+            valign: center;
+            width-request: 48;
+            height-request: 48;
+          };
+        };
+      }
+
+      StackPage {
+        name: "onboarding";
+
+        child: $SanctumOnboarding onboarding {};
+      }
+
+      StackPage {
+        name: "disconnected";
+
+        child: Adw.ToolbarView {
+          [top]
+          Adw.HeaderBar {
+            show-title: false;
+
+            [end]
+            MenuButton start_menu {
+              primary: true;
+              icon-name: "pan-down-symbolic";
+              tooltip-text: _("Main Menu");
+              menu-model: primary_menu;
+
+              accessibility {
+                label: _("Main Menu");
+              }
+            }
+          }
+
+          content: Adw.StatusPage disconnected_page {
+            icon-name: "network-offline-symbolic";
+            title: _("Not Connected");
+
+            child: Box {
+              orientation: vertical;
+              spacing: 12;
+              halign: center;
+
+              Button certificate_button {
+                label: _("_Review Certificate…");
+                use-underline: true;
+                visible: false;
+                clicked => $on_review_certificate_clicked() swapped;
+
+                styles [
+                  "pill",
+                  "suggested-action",
+                ]
+              }
+
+              Button retry_button {
+                label: _("_Retry");
+                use-underline: true;
+                action-name: "app.reconnect";
+
+                styles [
+                  "pill",
+                  "suggested-action",
+                ]
+              }
+
+              Button {
+                label: _("_Settings");
+                use-underline: true;
+                action-name: "app.preferences";
+
+                styles [
+                  "pill",
+                ]
+              }
+            };
+          };
+        };
+      }
+
+      StackPage {
+        name: "main";
+
+        child: Adw.ToolbarView main_view {
+          top-bar-style: flat;
+
+          [top]
+          Adw.HeaderBar {
+            styles [
+              "sanctum-compact",
+            ]
+
+            title-widget: Adw.WindowTitle web_title {
+              title: "Sanctum";
+            };
+
+            [start]
+            Button {
+              icon-name: "view-refresh-symbolic";
+              tooltip-text: _("Reload");
+              action-name: "win.reload";
+
+              accessibility {
+                label: _("Reload");
+              }
+            }
+
+            [end]
+            MenuButton header_menu {
+              primary: true;
+              icon-name: "pan-down-symbolic";
+              tooltip-text: _("Main Menu");
+              menu-model: primary_menu;
+
+              accessibility {
+                label: _("Main Menu");
+              }
+            }
+          }
+
+          content: Overlay {
+            child: Adw.Bin web_holder {};
+
+            [overlay]
+            Box start_controls_box {
+              halign: start;
+              valign: start;
+              visible: false;
+
+              styles [
+                "sanctum-controls",
+                "start",
+              ]
+
+              WindowControls start_controls {
+                side: start;
+                valign: center;
+                margin-start: 6;
+                margin-end: 6;
+              }
+            }
+
+            [overlay]
+            Box end_controls_box {
+              halign: end;
+              valign: start;
+              visible: false;
+
+              styles [
+                "sanctum-controls",
+                "end",
+              ]
+
+              MenuButton section_menu {
+                icon-name: "pan-down-symbolic";
+                tooltip-text: _("Main Menu");
+                menu-model: primary_menu;
+                valign: center;
+                margin-start: 6;
+
+                styles [
+                  "flat",
+                  "circular",
+                ]
+
+                accessibility {
+                  label: _("Main Menu");
+                }
+              }
+
+              WindowControls end_controls {
+                side: end;
+                valign: center;
+                margin-start: 6;
+                margin-end: 6;
+              }
+            }
+          };
+        };
+      }
+    };
+  };
+}
+
+menu primary_menu {
+  section {
+    item {
+      custom: "zoom";
+    }
+  }
+
+  section {
+    item {
+      custom: "home";
+    }
+  }
+
+  section {
+    item {
+      custom: "assist";
+    }
+
+    item {
+      custom: "preferences";
+    }
+
+    item {
+      custom: "about";
+    }
+  }
+
+  section {
+    item {
+      custom: "quit";
+    }
+  }
+}
