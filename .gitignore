@@ -11,3 +11,4 @@ src/config.rs
 /dist/
 /.no-sync
 src/.no-sync
+/DELETED.txt
