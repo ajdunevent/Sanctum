@@ -25,9 +25,7 @@
         "--talk-name=org.sigxcpu.Feedback",
         "--talk-name=io.furios.Flashlightd",
         "--talk-name=org.mpris.MediaPlayer2.*",
-        "--filesystem=xdg-config/assistant-button:create",
-        "--env=G_MESSAGES_DEBUG=sanctum",
-        "--env=RUST_BACKTRACE=1"
+        "--filesystem=xdg-config/assistant-button:create"
     ],
     "build-options": {
         "append-path": "/usr/lib/sdk/rust-stable/bin",
@@ -69,9 +67,6 @@
         {
             "name": "sanctum",
             "buildsystem": "meson",
-            "config-opts": [
-                "-Dprofile=development"
-            ],
             "sources": [
                 {
                     "type": "dir",

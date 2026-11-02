@@ -1,7 +1,7 @@
 project(
   'sanctum',
   'rust',
-  version: '0.1.0',
+  version: '1.0.0',
   license: 'GPL-3.0-or-later',
   meson_version: '>= 1.0.0',
 )
@@ -25,6 +25,38 @@ appstreamcli = find_program('appstreamcli', required: false)
 cargo = find_program('cargo', required: true)
 
 version = meson.project_version()
+
+# Cargo and the metainfo repeat the version, so setup stops until they match.
+fs = import('fs')
+cargo_version = ''
+foreach line : fs.read('Cargo.toml').split('\n')
+  if cargo_version == '' and line.startswith('version = "')
+    cargo_version = line.split('"')[1]
+  endif
+endforeach
+lock_version = ''
+after_name = false
+foreach line : fs.read('Cargo.lock').split('\n')
+  if after_name and line.startswith('version = "')
+    lock_version = line.split('"')[1]
+  endif
+  after_name = line == 'name = "@0@"'.format(meson.project_name())
+endforeach
+release_version = ''
+foreach line : fs.read('data' / base_id + '.metainfo.xml.in.in').split('\n')
+  if release_version == '' and line.strip().startswith('<release ') and line.contains('version="')
+    release_version = line.split('version="')[1].split('"')[0]
+  endif
+endforeach
+foreach file, found : {
+  'Cargo.toml': cargo_version,
+  'Cargo.lock': lock_version,
+  'The newest metainfo release': release_version,
+}
+  if found != version
+    error('@0@ has version "@1@", but meson.build has "@2@"'.format(file, found, version))
+  endif
+endforeach
 
 prefix = get_option('prefix')
 bindir = prefix / get_option('bindir')

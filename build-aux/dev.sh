@@ -146,6 +146,8 @@ make_bundle() {
 
     local finish_args
     mapfile -t finish_args < <(manifest_value finish-args)
+    # The manifest builds releases, so debug output is turned on here.
+    finish_args+=(--env=G_MESSAGES_DEBUG=sanctum --env=RUST_BACKTRACE=1)
     flatpak build-finish "${finish_args[@]}" "$finish" >/dev/null
     flatpak build-export --arch="$arch" "$state/repo" "$finish" >/dev/null
     mkdir -p "$(dirname "$bundle")"
