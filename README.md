@@ -19,6 +19,24 @@ Sanctum shows the Home Assistant frontend and adds the native companion features
 - Optional integrated titlebar, pull to refresh and swipe navigation
 - Self-signed certificates pinned per host
 
+## Screenshots
+
+<p align="center">
+  <img src="data/screenshots/Dashboard.png" width="250" alt="Dashboard">
+  <img src="data/screenshots/IntegratedHeaderbarMenu.png" width="250" alt="Sanctum menu in the integrated titlebar">
+</p>
+
+<p align="center">
+  <img src="data/screenshots/PreferencesGeneral.png" width="250" alt="Preferences, General">
+  <img src="data/screenshots/PreferencesSensors.png" width="250" alt="Preferences, Sensors">
+  <img src="data/screenshots/PreferencesControls.png" width="250" alt="Preferences, Controls">
+</p>
+
+<p align="center">
+  <img src="data/screenshots/SettingsWithCompanionApp.png" width="250" alt="Home Assistant settings with Companion app">
+  <img src="data/screenshots/Assist.png" width="250" alt="Assist">
+</p>
+
 ## Installing
 
 Releases are published to [ajdunevent/flatpak-repo](https://github.com/ajdunevent/flatpak-repo), whose README explains how to add it. Bundles for x86_64 and aarch64 are also attached to each [release](https://github.com/ajdunevent/Sanctum/releases/latest).
