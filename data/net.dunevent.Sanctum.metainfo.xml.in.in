@@ -18,13 +18,21 @@
       <li>Talk to Assist by text or voice, including from the FuriOS assistant button</li>
     </ul>
   </description>
-  <url type="homepage">https://dunevent.net</url>
+  <url type="homepage">https://dev.dunevent.net/aj/Sanctum</url>
+  <url type="bugtracker">https://dev.dunevent.net/aj/Sanctum/issues</url>
+  <url type="vcs-browser">https://dev.dunevent.net/aj/Sanctum</url>
+  <url type="donation">https://dunevent.net/donate</url>
+  <update_contact>aj@dunevent.net</update_contact>
   <developer id="net.dunevent">
-    <name translate="no">AJ</name>
+    <name translate="no">Sanctum contributors</name>
   </developer>
   <launchable type="desktop-id">@app_id@.desktop</launchable>
   <translation type="gettext">@gettext_package@</translation>
   <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="light">#a3dff5</color>
+    <color type="primary" scheme_preference="dark">#0b5f80</color>
+  </branding>
   <requires>
     <display_length compare="ge">360</display_length>
   </requires>
@@ -33,7 +41,48 @@
     <control>keyboard</control>
     <control>touch</control>
   </supports>
+  <screenshots>
+    <screenshot type="default">
+      <caption>A Home Assistant dashboard</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/Dashboard.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Sanctum's menu in Home Assistant's toolbar, used as the titlebar</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/IntegratedHeaderbarMenu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>General preferences</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/PreferencesGeneral.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Sensors reported to Home Assistant</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/PreferencesSensors.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Controls automations can use</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/PreferencesControls.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The device in Home Assistant's settings</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/SettingsWithCompanionApp.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Talking to Assist</caption>
+      <image>https://dev.dunevent.net/aj/Sanctum/raw/branch/main/data/screenshots/Assist.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
+    <release version="1.0.1" date="2026-11-07">
+      <description>
+        <p>Metainfo updates.</p>
+        <ul>
+          <li>Project links, donation link and update contact</li>
+          <li>Developer shown as Sanctum contributors</li>
+          <li>Brand colours and screenshots</li>
+          <li>The About dialog shows the same developer and links</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-11-01">
       <description>
         <p>First release.</p>

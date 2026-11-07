@@ -839,13 +839,15 @@ impl Application {
         let dialog = adw::AboutDialog::builder()
             .application_name(gettext("Sanctum"))
             .application_icon(APP_ID)
-            .developer_name("AJ")
+            .developer_name("Sanctum contributors")
             .version(VERSION)
-            .website("https://dunevent.net")
+            .website("https://dev.dunevent.net/aj/Sanctum")
+            .issue_url("https://dev.dunevent.net/aj/Sanctum/issues")
             .license_type(gtk::License::Gpl30)
-            .developers(["AJ"])
+            .developers(["AJ Dunevent"])
             .translator_credits(gettext("translator-credits"))
             .build();
+        dialog.add_link(&gettext("Donate"), "https://dunevent.net/donate");
         if let Some(window) = self.active_window() {
             dialog.present(Some(&window));
         }
