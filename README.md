@@ -45,7 +45,7 @@ Sanctum shows the Home Assistant frontend and adds the native companion features
 | --- | --- |
 | x86_64 & aarch64 | aarch64 only |
 
-## Command line Options
+## Command line options
 
 | Option | Effect |
 | --- | --- |
