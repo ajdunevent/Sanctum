@@ -39,31 +39,13 @@ Sanctum shows the Home Assistant frontend and adds the native companion features
 
 ## Installing
 
-Releases are published to [ajdunevent/flatpak-repo](https://github.com/ajdunevent/flatpak-repo), whose README explains how to add it. Bundles for x86_64 and aarch64 are also attached to each [release](https://github.com/ajdunevent/Sanctum/releases/latest).
+### Flatpak (recommended)
 
-## Building
+| <a href="https://ajdunevent.github.io/AJHub/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://ajdunevent.github.io/AJHub/badges/button-dark.svg"><img src="https://ajdunevent.github.io/AJHub/badges/button-light.svg" alt="AJHub, published with FrogPak" height="48"></picture></a> | <a href="https://furihub.github.io/repo/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://furihub.github.io/repo/badges/button-dark.svg"><img src="https://furihub.github.io/repo/badges/button-light.svg" alt="FuriHub, published with FrogPak" height="48"></picture></a> |
+| --- | --- |
+| x86_64 & aarch64 | aarch64 only |
 
-```sh
-flatpak install flathub org.gnome.Sdk//50 org.gnome.Platform//50 org.freedesktop.Sdk.Extension.rust-stable//25.08
-flatpak-builder --user --install --force-clean build build-aux/net.dunevent.Sanctum.json
-```
-
-For day-to-day work, `build-aux/dev.sh` makes incremental debug builds for either architecture and writes bundles to `dist/` or installs them. Building for the other architecture needs QEMU user emulation registered with binfmt_misc.
-
-Without Flatpak, Meson builds against the host libraries (GTK 4.18, libadwaita 1.7, libsoup 3.6, libsecret 0.21, blueprint-compiler):
-
-```sh
-meson setup _build -Dprofile=development
-meson compile -C _build
-meson test -C _build
-```
-
-## Releasing
-
-1. Set the new version in `meson.build`, `Cargo.toml` and a new `<release>` at the top of the list in `data/net.dunevent.Sanctum.metainfo.xml.in.in`, then run `cargo update -p sanctum` to update `Cargo.lock`. Meson setup fails until all four match.
-2. Commit, tag `vX.Y.Z` and push the tag. The GitHub mirror builds both architectures, checks the tag against the metainfo, publishes a release and updates the Flatpak repository. A tag with a hyphen (`v1.1.0-rc1`) makes a pre-release, which the Flatpak repository skips.
-
-## Command line
+## Command line Options
 
 | Option | Effect |
 | --- | --- |
@@ -96,7 +78,7 @@ data:
     command: toggle
 ```
 
-Do Not Disturb and the screen timeout need permissions the manifest leaves out. Preferences, Controls shows the `flatpak override` command for each.
+Do Not Disturb and the screen timeout need permissions the manifest leaves out. The Controls section of Preferences shows the `flatpak override` command for each.
 
 ## Permissions
 
@@ -120,15 +102,8 @@ Do Not Disturb and the screen timeout need permissions the manifest leaves out. 
 
 Location, notifications, the camera, the keyring, background running and links use portals.
 
-## Icons
-
-Entity icons come from [Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache-2.0). Only the icons listed in `build-aux/mdi-icons.txt` are bundled; after adding a name, regenerate them:
-
-```sh
-npm pack @mdi/svg && tar xzf mdi-svg-*.tgz
-build-aux/update-mdi-icons.py package
-```
-
 ## License
 
 GPL-3.0-or-later
+
+Entity icons come from [Material Design Icons](https://pictogrammers.com/library/mdi/) (Apache-2.0). Only the icons listed in `build-aux/mdi-icons.txt` are bundled.
