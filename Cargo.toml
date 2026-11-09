@@ -1,6 +1,6 @@
 [package]
 name = "sanctum"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["AJ <aj@dunevent.net>"]
 edition = "2024"
 rust-version = "1.85"

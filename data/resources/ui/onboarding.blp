@@ -13,69 +13,138 @@ template $SanctumOnboarding: Adw.Bin {
           show-title: false;
         }
 
-        content: Adw.StatusPage {
-          icon-name: "sanctum-symbolic";
-          title: _("Welcome to Sanctum");
-          description: _("Connect to your Home Assistant server to get started");
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
 
-          child: Adw.Clamp {
-            maximum-size: 400;
+          // The address box stays centred while search results appear below it.
+          child: CenterBox {
+            orientation: vertical;
+            margin-top: 36;
+            margin-bottom: 36;
+            margin-start: 12;
+            margin-end: 12;
 
-            child: Box {
-              orientation: vertical;
-              spacing: 24;
+            center-widget: Adw.Clamp {
+              maximum-size: 400;
 
-              ListBox {
-                selection-mode: none;
-
-                styles [
-                  "boxed-list",
-                ]
-
-                Adw.EntryRow url_row {
-                  title: _("Server Address");
-                  input-purpose: url;
-                  input-hints: no_spellcheck | no_emoji;
-                  activates-default: true;
-                  entry-activated => $on_url_activated() swapped;
-                }
-              }
-
-              Button continue_button {
-                label: _("_Continue");
-                use-underline: true;
-                halign: center;
-                clicked => $on_continue_clicked() swapped;
-
-                styles [
-                  "pill",
-                  "suggested-action",
-                ]
-              }
-
-              Box found_box {
+              child: Box {
                 orientation: vertical;
-                spacing: 12;
-                visible: false;
+                spacing: 24;
 
-                Label {
-                  label: _("Found on This Network");
-                  xalign: 0;
+                Box {
+                  orientation: vertical;
+                  margin-bottom: 12;
 
-                  styles [
-                    "heading",
-                  ]
+                  Image {
+                    icon-name: "sanctum-symbolic";
+                    pixel-size: 128;
+                    margin-bottom: 36;
+
+                    styles [
+                      "dim-label",
+                    ]
+                  }
+
+                  Label {
+                    label: _("Welcome to Sanctum");
+                    wrap: true;
+                    justify: center;
+                    margin-bottom: 12;
+
+                    styles [
+                      "title-1",
+                    ]
+                  }
+
+                  Label {
+                    label: _("Connect to your Home Assistant server to get started");
+                    wrap: true;
+                    justify: center;
+                  }
                 }
 
-                ListBox found_list {
+                ListBox {
                   selection-mode: none;
-                  row-activated => $on_found_activated() swapped;
 
                   styles [
                     "boxed-list",
                   ]
+
+                  Adw.EntryRow url_row {
+                    title: _("Server Address");
+                    input-purpose: url;
+                    input-hints: no_spellcheck | no_emoji;
+                    activates-default: true;
+                    entry-activated => $on_url_activated() swapped;
+                  }
                 }
-              }
+
+                Button continue_button {
+                  label: _("_Continue");
+                  use-underline: true;
+                  halign: center;
+                  clicked => $on_continue_clicked() swapped;
+
+                  styles [
+                    "pill",
+                    "suggested-action",
+                  ]
+                }
+              };
+            };
+
+            end-widget: Adw.Clamp {
+              maximum-size: 400;
+              vexpand: true;
+              margin-top: 24;
+
+              child: Box {
+                orientation: vertical;
+                valign: start;
+                spacing: 24;
+
+                Box found_box {
+                  orientation: vertical;
+                  spacing: 12;
+                  visible: false;
+
+                  Label {
+                    label: _("Found on This Network");
+                    xalign: 0;
+
+                    styles [
+                      "heading",
+                    ]
+                  }
+
+                  ListBox found_list {
+                    selection-mode: none;
+                    row-activated => $on_found_activated() swapped;
+
+                    styles [
+                      "boxed-list",
+                    ]
+                  }
+                }
+
+                Box search_box {
+                  spacing: 12;
+                  halign: center;
+
+                  Adw.Spinner search_spinner {
+                    valign: start;
+                  }
+
+                  Label search_label {
+                    wrap: true;
+                    xalign: 0;
+
+                    styles [
+                      "dim-label",
+                    ]
+                  }
+                }
+              };
             };
           };
         };
@@ -88,20 +157,106 @@ template $SanctumOnboarding: Adw.Bin {
 
       child: Adw.ToolbarView {
         [top]
-        Adw.HeaderBar {
-          [end]
-          MenuButton {
-            icon-name: "view-more-symbolic";
-            tooltip-text: _("Other Ways to Sign In");
-            menu-model: login_menu;
+        Adw.HeaderBar {}
 
-            accessibility {
-              label: _("Other Ways to Sign In");
-            }
-          }
-        }
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
 
-        content: Adw.Bin login_holder {};
+          child: CenterBox {
+            orientation: vertical;
+            margin-top: 24;
+            margin-bottom: 24;
+            margin-start: 12;
+            margin-end: 12;
+
+            center-widget: Adw.Clamp {
+              maximum-size: 400;
+
+              child: Box {
+                orientation: vertical;
+                spacing: 24;
+
+                Box {
+                  orientation: vertical;
+                  spacing: 6;
+
+                  Label login_title {
+                    wrap: true;
+                    justify: center;
+
+                    styles [
+                      "title-2",
+                    ]
+                  }
+
+                  Label login_subtitle {
+                    wrap: true;
+                    justify: center;
+
+                    styles [
+                      "dim-label",
+                    ]
+                  }
+                }
+
+                Adw.Spinner login_spinner {
+                  height-request: 32;
+                  visible: false;
+                }
+
+                Box login_form {
+                  orientation: vertical;
+                  spacing: 12;
+                }
+
+                Button login_button {
+                  use-underline: true;
+                  halign: center;
+                  visible: false;
+                  clicked => $on_login_clicked() swapped;
+
+                  styles [
+                    "pill",
+                    "suggested-action",
+                  ]
+                }
+              };
+            };
+
+            end-widget: Adw.Clamp {
+              maximum-size: 400;
+              vexpand: true;
+              margin-top: 24;
+
+              child: Box {
+                orientation: vertical;
+                valign: start;
+
+                Box others_box {
+                  orientation: vertical;
+                  spacing: 12;
+
+                  Label others_heading {
+                    label: _("Ways to Sign In");
+                    xalign: 0;
+
+                    styles [
+                      "heading",
+                    ]
+                  }
+
+                  ListBox others_list {
+                    selection-mode: none;
+
+                    styles [
+                      "boxed-list",
+                    ]
+                  }
+                }
+              };
+            };
+          };
+        };
       };
     }
 
@@ -614,18 +769,4 @@ template $SanctumOnboarding: Adw.Bin {
       };
     }
   };
-}
-
-menu login_menu {
-  section {
-    item {
-      label: _("Sign In With _Browser");
-      action: "onboarding.browser";
-    }
-
-    item {
-      label: _("Use an Access _Token");
-      action: "onboarding.token";
-    }
-  }
 }

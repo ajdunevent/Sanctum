@@ -16,6 +16,7 @@ src/agent/system.rs
 src/application.rs
 src/control/catalog.rs
 src/furios.rs
+src/ha/auth.rs
 src/ha/registry.rs
 src/ha/webhook.rs
 src/main.rs

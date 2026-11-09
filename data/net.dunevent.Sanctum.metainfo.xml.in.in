@@ -72,6 +72,17 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.0.2" date="2026-11-09">
+      <description>
+        <p>A native sign-in and a clearer welcome page.</p>
+        <ul>
+          <li>Signing in uses Sanctum’s own pages instead of Home Assistant’s login page, including two-factor codes and trusted networks</li>
+          <li>Other sign-in methods, the browser and access tokens are listed under Other Ways to Sign In</li>
+          <li>The welcome page says whether it is searching for, found or could not find a server</li>
+          <li>Checking a server address no longer creates a “Login attempt failed” notification</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-11-07">
       <description>
         <p>Metainfo updates.</p>

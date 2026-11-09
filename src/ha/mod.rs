@@ -10,6 +10,7 @@ pub mod endpoints;
 mod error;
 pub mod history;
 mod http;
+pub mod login;
 pub mod registration;
 pub mod registry;
 mod server;

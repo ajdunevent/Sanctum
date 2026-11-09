@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
@@ -7,27 +6,20 @@ use futures_channel::oneshot;
 use futures_util::future::{Either, select};
 use gettextrs::gettext;
 use gtk::glib;
-use webkit::prelude::*;
+use serde_json::{Map, Value};
 
 use super::{app, confirm_trust, error_text};
 use crate::ha::credentials::Registration;
 use crate::ha::discovery;
+use crate::ha::login::{Field, Provider, Step};
 use crate::ha::{self, Credentials};
 
-/// The login page names only the official Android and iOS apps; any other
-/// client shows its client ID URL as a warning. Sanctum's view shows its
-/// name as an ordinary notice. The frontend may render again, so the check
-/// repeats.
-const CLIENT_NAME_SCRIPT: &str = r#"setInterval(() => {
-  const page = document.querySelector("ha-authorize");
-  for (const alert of (page?.shadowRoot ?? page)?.querySelectorAll("ha-alert") ?? []) {
-    const name = alert.querySelector("b");
-    if (name && name.textContent.trim() === CLIENT_ID) {
-      name.textContent = "Sanctum";
-      alert.alertType = "info";
-    }
-  }
-}, 200);"#;
+/// A login flow in progress.
+#[derive(Clone, Debug)]
+pub struct LoginState {
+    provider: Provider,
+    flow_id: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct DeviceSlot {
@@ -53,13 +45,33 @@ mod imp {
         #[template_child]
         pub found_list: TemplateChild<gtk::ListBox>,
         #[template_child]
-        pub login_holder: TemplateChild<adw::Bin>,
+        pub login_title: TemplateChild<gtk::Label>,
+        #[template_child]
+        pub login_subtitle: TemplateChild<gtk::Label>,
+        #[template_child]
+        pub login_spinner: TemplateChild<adw::Spinner>,
+        #[template_child]
+        pub login_form: TemplateChild<gtk::Box>,
+        #[template_child]
+        pub login_button: TemplateChild<gtk::Button>,
+        #[template_child]
+        pub others_box: TemplateChild<gtk::Box>,
+        #[template_child]
+        pub others_heading: TemplateChild<gtk::Label>,
+        #[template_child]
+        pub others_list: TemplateChild<gtk::ListBox>,
         #[template_child]
         pub token_row: TemplateChild<adw::PasswordEntryRow>,
         #[template_child]
         pub token_button: TemplateChild<gtk::Button>,
         #[template_child]
         pub name_row: TemplateChild<adw::EntryRow>,
+        #[template_child]
+        pub search_box: TemplateChild<gtk::Box>,
+        #[template_child]
+        pub search_spinner: TemplateChild<adw::Spinner>,
+        #[template_child]
+        pub search_label: TemplateChild<gtk::Label>,
         #[template_child]
         pub intro_sensors_row: TemplateChild<adw::ActionRow>,
         #[template_child]
@@ -92,7 +104,15 @@ mod imp {
         pub device_name: RefCell<String>,
         /// Sign-in that waits for the mode choice and device name.
         pub pending: RefCell<Option<(ha::ServerUrl, ha::Auth)>>,
-        pub login: RefCell<Option<Rc<ha::auth::WebFlow>>>,
+        /// The server's sign-in providers, as `/auth/providers` lists them.
+        pub providers: RefCell<Vec<Provider>>,
+        pub flow: RefCell<Option<LoginState>>,
+        /// The current form's text fields, by field name.
+        pub login_entries: RefCell<Vec<(String, adw::EntryRow)>>,
+        /// The button starts a new flow after a flow fails or stops.
+        pub login_restart: Cell<bool>,
+        /// Lets a request tell whether the page moved on while it waited.
+        pub login_generation: Cell<u32>,
         pub authorize_url: RefCell<String>,
         pub cancel_browser: RefCell<Option<oneshot::Sender<()>>>,
         /// The welcome page stays up after sign-in until it is dismissed.
@@ -100,6 +120,8 @@ mod imp {
         pub browser: RefCell<Option<discovery::Browser>>,
         /// Servers announced on the local network, in list order.
         pub found: RefCell<Vec<discovery::Found>>,
+        /// Lets a search's timeout tell whether a newer search replaced it.
+        pub search: Cell<u32>,
         /// What the home network switch adds.
         pub current_networks: RefCell<Vec<String>>,
     }
@@ -119,14 +141,6 @@ mod imp {
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
             klass.bind_template_instance_callbacks();
-            klass.install_action("onboarding.browser", None, |obj, _, _| {
-                obj.start_browser();
-            });
-            klass.install_action("onboarding.token", None, |obj, _, _| {
-                let imp = obj.imp();
-                imp.navigation.push_by_tag("token");
-                imp.token_row.grab_focus();
-            });
         }
 
         fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
@@ -232,6 +246,9 @@ impl Onboarding {
         imp.found.replace(Vec::new());
         imp.found_list.remove_all();
         imp.found_box.set_visible(false);
+        let search = imp.search.get().wrapping_add(1);
+        imp.search.set(search);
+        self.show_search_status(&gettext("Searching this network for Home Assistant…"), true);
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = obj)]
             self,
@@ -243,9 +260,45 @@ impl Onboarding {
                     }
                 })
                 .await;
+                if browser.is_none() && obj.imp().search.get() == search {
+                    obj.show_search_status(
+                        &gettext(
+                            "Automatic detection is not available on this device. Please enter the address above.",
+                        ),
+                        false,
+                    );
+                }
                 obj.imp().browser.replace(browser);
             }
         ));
+        glib::timeout_add_seconds_local_once(
+            10,
+            glib::clone!(
+                #[weak(rename_to = obj)]
+                self,
+                move || {
+                    let imp = obj.imp();
+                    if imp.search.get() == search
+                        && imp.found.borrow().is_empty()
+                        && imp.search_spinner.is_visible()
+                    {
+                        obj.show_search_status(
+                            &gettext(
+                                "Automatic detection did not identify a Home Assistant server on this network. Please enter the address above.",
+                            ),
+                            false,
+                        );
+                    }
+                }
+            ),
+        );
+    }
+
+    fn show_search_status(&self, text: &str, searching: bool) {
+        let imp = self.imp();
+        imp.search_label.set_label(text);
+        imp.search_spinner.set_visible(searching);
+        imp.search_box.set_visible(true);
     }
 
     fn add_found(&self, found: discovery::Found) {
@@ -267,6 +320,7 @@ impl Onboarding {
         imp.found_list.append(&row);
         imp.found.borrow_mut().push(found);
         imp.found_box.set_visible(true);
+        imp.search_box.set_visible(false);
     }
 
     #[template_callback]
@@ -348,190 +402,522 @@ impl Onboarding {
         ));
     }
 
-    /// Shows the server's login page. The view is created once per visit and
-    /// nothing reloads it, so typing is never interrupted.
+    /// Shows the sign-in page, led by the first provider Sanctum can show
+    /// natively.
     fn start_login(&self) {
         let imp = self.imp();
         let Some(server) = imp.server.borrow().clone() else {
             return;
         };
-        let flow = Rc::new(ha::auth::WebFlow::start(&server));
-        let session = webkit::NetworkSession::new_ephemeral();
-        let web = webkit::WebView::builder()
-            .network_session(&session)
-            .vexpand(true)
-            .build();
-        super::dashboard::apply_settings(&web);
-        if let Some(content) = web.user_content_manager() {
-            super::dashboard::add_compatibility_scripts(&content);
-            content.add_script(&webkit::UserScript::new(
-                &CLIENT_NAME_SCRIPT.replace(
-                    "CLIENT_ID",
-                    &serde_json::to_string(ha::auth::CLIENT_ID).expect("a string"),
-                ),
-                webkit::UserContentInjectedFrames::TopFrame,
-                webkit::UserScriptInjectionTime::End,
-                &[],
-                &[],
-            ));
-        }
-
-        let progress = gtk::ProgressBar::builder()
-            .valign(gtk::Align::Start)
-            .css_classes(["osd"])
-            .build();
-        web.connect_estimated_load_progress_notify(glib::clone!(
-            #[weak]
-            progress,
-            move |web| {
-                let fraction = web.estimated_load_progress();
-                progress.set_fraction(fraction);
-                progress.set_visible(fraction < 1.0);
-            }
-        ));
-        web.connect_decide_policy(glib::clone!(
-            #[weak(rename_to = obj)]
-            self,
-            #[strong]
-            flow,
-            #[upgrade_or]
-            false,
-            move |_, decision, kind| obj.decide_login(&flow, decision, kind)
-        ));
-        web.connect_create(|_, action| {
-            if let Some(uri) = action.clone().request().and_then(|r| r.uri()) {
-                super::dashboard::launch(&uri);
-            }
-            None
-        });
-        web.connect_load_failed_with_tls_errors(glib::clone!(
-            #[weak(rename_to = obj)]
-            self,
-            #[upgrade_or]
-            false,
-            move |web, uri, certificate, errors| {
-                let Ok(parsed) = glib::Uri::parse(uri, glib::UriFlags::NONE) else {
-                    return false;
-                };
-                let info = ha::trust::describe(ha::trust::host_key(&parsed), certificate, errors);
-                if ha::trust::is_trusted(&info) {
-                    if let Some(session) = web.network_session() {
-                        session.allow_tls_certificate_for_host(
-                            certificate,
-                            &parsed.host().unwrap_or_default(),
-                        );
-                    }
-                    web.load_uri(uri);
-                } else {
-                    obj.login_failed(&gettext("The server's certificate is not trusted"));
-                }
-                true
-            }
-        ));
-        web.connect_load_failed(glib::clone!(
-            #[weak(rename_to = obj)]
-            self,
-            #[upgrade_or]
-            false,
-            move |_, _, _, error| {
-                if error.matches(webkit::NetworkError::Cancelled)
-                    || error.matches(webkit::PolicyError::FrameLoadInterruptedByPolicyChange)
-                {
-                    return false;
-                }
-                obj.login_failed(error.message());
-                true
-            }
-        ));
-
-        let overlay = gtk::Overlay::builder().child(&web).build();
-        overlay.add_overlay(&progress);
-        imp.login_holder.set_child(Some(&overlay));
-        web.load_uri(flow.authorize_url());
-        imp.login.replace(Some(flow));
+        self.stop_login();
+        let generation = imp.login_generation.get();
+        self.show_login_loading();
         if imp.navigation.visible_page_tag().as_deref() != Some("login") {
             imp.navigation.push_by_tag("login");
         }
-    }
-
-    fn stop_login(&self) {
-        let imp = self.imp();
-        imp.login.replace(None);
-        imp.login_holder.set_child(gtk::Widget::NONE);
-    }
-
-    fn login_failed(&self, message: &str) {
-        let imp = self.imp();
-        let page = adw::StatusPage::builder()
-            .icon_name("network-offline-symbolic")
-            .title(gettext("Login Page Unavailable"))
-            .description(glib::markup_escape_text(message))
-            .build();
-        let retry = gtk::Button::builder()
-            .label(gettext("_Retry"))
-            .use_underline(true)
-            .halign(gtk::Align::Center)
-            .css_classes(["pill", "suggested-action"])
-            .build();
-        retry.connect_clicked(glib::clone!(
-            #[weak(rename_to = obj)]
-            self,
-            move |_| obj.start_login()
-        ));
-        page.set_child(Some(&retry));
-        imp.login.replace(None);
-        imp.login_holder.set_child(Some(&page));
-    }
-
-    /// Stops at the redirect, which carries the authorization code. Links that
-    /// open new windows, such as Help, go to the browser.
-    fn decide_login(
-        &self,
-        flow: &Rc<ha::auth::WebFlow>,
-        decision: &webkit::PolicyDecision,
-        kind: webkit::PolicyDecisionType,
-    ) -> bool {
-        let Some(navigation) = decision.downcast_ref::<webkit::NavigationPolicyDecision>() else {
-            return false;
-        };
-        let Some(uri) = navigation
-            .navigation_action()
-            .and_then(|action| action.request())
-            .and_then(|request| request.uri())
-        else {
-            return false;
-        };
-        if kind == webkit::PolicyDecisionType::NewWindowAction {
-            decision.ignore();
-            super::dashboard::launch(&uri);
-            return true;
-        }
-        let Some(result) = flow.callback(&uri) else {
-            return false;
-        };
-        decision.ignore();
-        let flow = flow.clone();
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = obj)]
             self,
             async move {
-                let Some(server) = obj.imp().server.borrow().clone() else {
+                let providers = ha::login::providers(&server).await;
+                let imp = obj.imp();
+                if imp.login_generation.get() != generation {
                     return;
+                }
+                let providers = providers.unwrap_or_else(|err| {
+                    log::debug!("No sign-in providers: {err}");
+                    Vec::new()
+                });
+                let primary = ha::login::primary(&providers).cloned();
+                imp.providers.replace(providers);
+                match primary {
+                    Some(provider) => obj.begin_flow(provider).await,
+                    None => obj.show_ways(),
+                }
+            }
+        ));
+    }
+
+    /// Ends the flow in progress and drops any answer still on its way.
+    fn stop_login(&self) {
+        let imp = self.imp();
+        imp.login_generation
+            .set(imp.login_generation.get().wrapping_add(1));
+        let server = imp.server.borrow().clone();
+        if let (Some(state), Some(server)) = (imp.flow.take(), server) {
+            glib::spawn_future_local(async move {
+                ha::login::cancel(&server, &state.flow_id).await;
+            });
+        }
+    }
+
+    async fn begin_flow(&self, provider: Provider) {
+        let imp = self.imp();
+        let Some(server) = imp.server.borrow().clone() else {
+            return;
+        };
+        self.stop_login();
+        let generation = imp.login_generation.get();
+        self.show_login_loading();
+        let step = ha::login::start(&server, &provider).await;
+        if imp.login_generation.get() == generation {
+            self.show_step(provider, step);
+        }
+    }
+
+    fn show_step(&self, provider: Provider, step: ha::Result<Step>) {
+        let imp = self.imp();
+        self.set_login_busy(false);
+        match step {
+            Ok(Step::Form {
+                flow_id,
+                step_id,
+                fields,
+                error,
+                placeholders,
+            }) => {
+                if !renderable(&fields) {
+                    log::debug!("Sign-in step {step_id} has fields Sanctum cannot show");
+                    self.hand_to_browser(&flow_id);
+                    return;
+                }
+                imp.flow.replace(Some(LoginState {
+                    provider: provider.clone(),
+                    flow_id,
+                }));
+                self.render_form(
+                    &provider,
+                    &step_id,
+                    &fields,
+                    error.as_deref(),
+                    &placeholders,
+                );
+            }
+            Ok(Step::Done(code)) => {
+                imp.flow.replace(None);
+                self.complete_login(code);
+            }
+            Ok(Step::Abort(reason)) => {
+                imp.flow.replace(None);
+                self.show_login_failure(&provider, &abort_text(&reason));
+            }
+            Ok(Step::Unsupported(kind)) => {
+                log::debug!("Sign-in step of type {kind} needs the browser");
+                let flow_id = imp
+                    .flow
+                    .borrow()
+                    .as_ref()
+                    .map(|state| state.flow_id.clone());
+                self.hand_to_browser(flow_id.as_deref().unwrap_or_default());
+            }
+            Err(err) => {
+                imp.flow.replace(None);
+                self.show_login_failure(&provider, &error_text(&err));
+            }
+        }
+    }
+
+    /// Cancels the flow and continues in the browser, which can show any step.
+    fn hand_to_browser(&self, flow_id: &str) {
+        let imp = self.imp();
+        imp.flow.replace(None);
+        if let Some(server) = imp.server.borrow().clone().filter(|_| !flow_id.is_empty()) {
+            let flow_id = flow_id.to_owned();
+            glib::spawn_future_local(async move {
+                ha::login::cancel(&server, &flow_id).await;
+            });
+        }
+        self.toast(&gettext("This sign-in continues in your web browser"));
+        self.start_browser();
+    }
+
+    fn server_title(&self) -> String {
+        let imp = self.imp();
+        let server = imp.server.borrow().clone();
+        let name = server.as_ref().and_then(|server| {
+            imp.found
+                .borrow()
+                .iter()
+                .find(|found| {
+                    ha::ServerUrl::parse(&found.internal_url).ok().as_ref() == Some(server)
+                })
+                .map(|found| found.name.clone())
+        });
+        match name {
+            Some(name) => gettext("Sign In to {}").replace("{}", &name),
+            None => gettext("Sign In to Home Assistant"),
+        }
+    }
+
+    fn set_login_text(&self, title: &str, subtitle: &str) {
+        let imp = self.imp();
+        imp.login_title.set_label(title);
+        imp.login_subtitle.set_label(subtitle);
+        imp.login_subtitle.set_visible(!subtitle.is_empty());
+    }
+
+    fn clear_login_form(&self) {
+        let imp = self.imp();
+        while let Some(child) = imp.login_form.first_child() {
+            imp.login_form.remove(&child);
+        }
+        imp.login_entries.borrow_mut().clear();
+        imp.login_button.set_visible(false);
+        imp.login_restart.set(false);
+    }
+
+    fn show_login_loading(&self) {
+        let imp = self.imp();
+        self.clear_login_form();
+        let address = imp
+            .server
+            .borrow()
+            .as_ref()
+            .map(|server| server.as_str().to_owned())
+            .unwrap_or_default();
+        self.set_login_text(&self.server_title(), &address);
+        imp.login_spinner.set_visible(true);
+        imp.others_box.set_visible(false);
+    }
+
+    fn set_login_busy(&self, busy: bool) {
+        let imp = self.imp();
+        imp.login_spinner.set_visible(false);
+        imp.login_form.set_sensitive(!busy);
+        imp.login_button.set_sensitive(!busy);
+        imp.others_list.set_sensitive(!busy);
+    }
+
+    fn render_form(
+        &self,
+        provider: &Provider,
+        step_id: &str,
+        fields: &[Field],
+        error: Option<&str>,
+        placeholders: &std::collections::HashMap<String, String>,
+    ) {
+        let imp = self.imp();
+        // A step shown again after an error keeps what was typed.
+        let typed: std::collections::HashMap<String, String> = imp
+            .login_entries
+            .borrow()
+            .iter()
+            .map(|(name, row)| (name.clone(), row.text().to_string()))
+            .collect();
+        self.clear_login_form();
+        let (title, subtitle) = match step_id {
+            "mfa" => (
+                gettext("Two-Factor Authentication"),
+                if placeholders.get("mfa_module_id").map(String::as_str) == Some("totp") {
+                    gettext("Enter the code from your authenticator app")
+                } else {
+                    gettext("Enter the code from {}").replace(
+                        "{}",
+                        placeholders
+                            .get("mfa_module_name")
+                            .map(String::as_str)
+                            .unwrap_or_default(),
+                    )
+                },
+            ),
+            "select_mfa_module" => (
+                gettext("Two-Factor Authentication"),
+                gettext("Choose how to confirm it’s you"),
+            ),
+            _ if provider.kind == "trusted_networks" => (
+                self.server_title(),
+                gettext(
+                    "Choose who to sign in as. This network is trusted, so no password is needed.",
+                ),
+            ),
+            _ => (
+                self.server_title(),
+                imp.server
+                    .borrow()
+                    .as_ref()
+                    .map(|server| server.as_str().to_owned())
+                    .unwrap_or_default(),
+            ),
+        };
+        self.set_login_text(&title, &subtitle);
+
+        let list = gtk::ListBox::builder()
+            .selection_mode(gtk::SelectionMode::None)
+            .css_classes(["boxed-list"])
+            .build();
+        if let [Field::Select { name, options }] = fields {
+            for (value, label) in options {
+                let row = adw::ActionRow::builder()
+                    .title(glib::markup_escape_text(label))
+                    .activatable(true)
+                    .build();
+                if name == "user" {
+                    row.add_prefix(
+                        &adw::Avatar::builder()
+                            .size(32)
+                            .text(label)
+                            .show_initials(true)
+                            .build(),
+                    );
+                }
+                row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+                let mut values = Map::new();
+                values.insert(name.clone(), Value::String(value.clone()));
+                row.connect_activated(glib::clone!(
+                    #[weak(rename_to = obj)]
+                    self,
+                    move |_| obj.submit_login(values.clone())
+                ));
+                list.append(&row);
+            }
+        } else {
+            let mut entries = Vec::new();
+            for field in fields {
+                let name = field.name().to_owned();
+                let row: adw::EntryRow = if name == "password" {
+                    adw::PasswordEntryRow::new().upcast()
+                } else {
+                    adw::EntryRow::new()
                 };
-                let auth = match result {
-                    Ok(code) => flow.exchange(&code).await,
-                    Err(err) => Err(err),
-                };
-                match auth {
+                row.set_title(&field_label(&name));
+                if let Some(text) = typed.get(&name) {
+                    row.set_text(text);
+                }
+                if name == "code" {
+                    row.set_input_purpose(gtk::InputPurpose::Digits);
+                }
+                if name == "username" {
+                    row.set_input_hints(
+                        gtk::InputHints::NO_SPELLCHECK | gtk::InputHints::LOWERCASE,
+                    );
+                }
+                row.connect_entry_activated(glib::clone!(
+                    #[weak(rename_to = obj)]
+                    self,
+                    move |_| obj.on_login_clicked()
+                ));
+                list.append(&row);
+                entries.push((name, row));
+            }
+            imp.login_button.set_label(&if step_id == "init" {
+                gettext("_Sign In")
+            } else {
+                gettext("_Verify")
+            });
+            imp.login_button.set_visible(true);
+            imp.login_entries.replace(entries);
+        }
+        imp.login_form.append(&list);
+        // After an error the last field, usually the password or code, is
+        // selected for retyping.
+        let entries = imp.login_entries.borrow();
+        let target = if error.is_some() {
+            entries.last()
+        } else {
+            entries.iter().find(|(_, row)| row.text().is_empty())
+        };
+        if let Some((_, row)) = target {
+            row.grab_focus();
+            row.select_region(0, -1);
+        }
+        drop(entries);
+        if let Some(error) = error {
+            imp.login_form.append(&error_label(&form_error_text(error)));
+        }
+        self.fill_others(Some(provider));
+    }
+
+    fn show_login_failure(&self, provider: &Provider, message: &str) {
+        let imp = self.imp();
+        self.clear_login_form();
+        imp.login_form.append(&error_label(message));
+        imp.login_button.set_label(&gettext("_Start Again"));
+        imp.login_button.set_visible(true);
+        imp.login_restart.set(true);
+        self.fill_others(Some(provider));
+    }
+
+    /// The page for servers whose providers all need the browser.
+    fn show_ways(&self) {
+        let imp = self.imp();
+        self.set_login_busy(false);
+        self.clear_login_form();
+        self.set_login_text(
+            &self.server_title(),
+            &gettext("This server’s sign-in methods need your browser or an access token."),
+        );
+        imp.flow.replace(None);
+        self.fill_others(None);
+    }
+
+    /// Lists every way in except `current`: collapsed under "Other Ways to
+    /// Sign In" when a method is shown, or open as "Ways to Sign In".
+    fn fill_others(&self, current: Option<&Provider>) {
+        let imp = self.imp();
+        imp.others_list.remove_all();
+        let mut rows = Vec::new();
+        for provider in imp.providers.borrow().iter() {
+            if Some(provider) == current {
+                continue;
+            }
+            rows.push(self.provider_row(provider));
+        }
+        let browser = way_row(
+            &gettext("Use Your Browser"),
+            &gettext("Sign in on Home Assistant’s own page"),
+            "adw-external-link-symbolic",
+        );
+        browser.connect_activated(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            move |_| obj.start_browser()
+        ));
+        rows.push(browser);
+        let token = way_row(
+            &gettext("Use an Access Token"),
+            &gettext("Paste a long-lived token from your profile"),
+            "go-next-symbolic",
+        );
+        token.connect_activated(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            move |_| {
+                let imp = obj.imp();
+                imp.navigation.push_by_tag("token");
+                imp.token_row.grab_focus();
+            }
+        ));
+        rows.push(token);
+
+        if current.is_some() {
+            let expander = adw::ExpanderRow::builder()
+                .title(gettext("Other Ways to Sign In"))
+                .build();
+            for row in &rows {
+                expander.add_row(row);
+            }
+            imp.others_list.append(&expander);
+        } else {
+            for row in &rows {
+                imp.others_list.append(row);
+            }
+        }
+        imp.others_heading.set_visible(current.is_none());
+        imp.others_box.set_visible(true);
+    }
+
+    fn provider_row(&self, provider: &Provider) -> adw::ActionRow {
+        if !provider.is_native() {
+            let row = way_row(
+                &provider.name,
+                &gettext("Opens in your browser"),
+                "adw-external-link-symbolic",
+            );
+            row.connect_activated(glib::clone!(
+                #[weak(rename_to = obj)]
+                self,
+                move |_| obj.start_browser()
+            ));
+            return row;
+        }
+        let subtitle = match provider.kind.as_str() {
+            "trusted_networks" => gettext("Choose a user without a password"),
+            _ => gettext("Username and password"),
+        };
+        let row = way_row(&provider.name, &subtitle, "go-next-symbolic");
+        let provider = provider.clone();
+        row.connect_activated(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            move |_| {
+                let provider = provider.clone();
+                glib::spawn_future_local(glib::clone!(
+                    #[weak]
+                    obj,
+                    async move { obj.begin_flow(provider).await }
+                ));
+            }
+        ));
+        row
+    }
+
+    #[template_callback]
+    fn on_login_clicked(&self) {
+        let imp = self.imp();
+        if imp.login_restart.get() {
+            let provider = imp
+                .flow
+                .borrow()
+                .as_ref()
+                .map(|state| state.provider.clone());
+            match provider.or_else(|| ha::login::primary(&imp.providers.borrow()).cloned()) {
+                Some(provider) => glib::spawn_future_local(glib::clone!(
+                    #[weak(rename_to = obj)]
+                    self,
+                    async move { obj.begin_flow(provider).await }
+                )),
+                None => {
+                    self.start_login();
+                    return;
+                }
+            };
+            return;
+        }
+        let mut values = Map::new();
+        for (name, row) in imp.login_entries.borrow().iter() {
+            let text = row.text().to_string();
+            if text.is_empty() {
+                row.grab_focus();
+                return;
+            }
+            values.insert(name.clone(), Value::String(text));
+        }
+        self.submit_login(values);
+    }
+
+    fn submit_login(&self, values: Map<String, Value>) {
+        let imp = self.imp();
+        let (Some(state), Some(server)) = (imp.flow.borrow().clone(), imp.server.borrow().clone())
+        else {
+            return;
+        };
+        let generation = imp.login_generation.get();
+        self.set_login_busy(true);
+        glib::spawn_future_local(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            async move {
+                let step = ha::login::submit(&server, &state.flow_id, values).await;
+                if obj.imp().login_generation.get() == generation {
+                    obj.show_step(state.provider, step);
+                }
+            }
+        ));
+    }
+
+    fn complete_login(&self, code: String) {
+        let imp = self.imp();
+        let Some(server) = imp.server.borrow().clone() else {
+            return;
+        };
+        self.set_login_busy(true);
+        glib::spawn_future_local(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            async move {
+                match ha::login::finish(&server, &code).await {
                     Ok(auth) => obj.finish(server, auth),
                     Err(err) => {
-                        obj.toast(&error_text(&err));
-                        obj.start_login();
+                        obj.set_login_busy(false);
+                        let provider = ha::login::primary(&obj.imp().providers.borrow()).cloned();
+                        match provider {
+                            Some(provider) => obj.show_login_failure(&provider, &error_text(&err)),
+                            None => obj.toast(&error_text(&err)),
+                        }
                     }
                 }
             }
         ));
-        true
     }
 
     #[template_callback]
@@ -872,4 +1258,59 @@ impl Onboarding {
         self.set_busy(false);
         self.toast(&error_text(error));
     }
+}
+
+/// Forms are either text fields or a single choice list.
+fn renderable(fields: &[Field]) -> bool {
+    matches!(fields, [Field::Select { .. }])
+        || (!fields.is_empty()
+            && fields
+                .iter()
+                .all(|field| matches!(field, Field::Text { .. })))
+}
+
+fn field_label(name: &str) -> String {
+    match name {
+        "username" => gettext("Username"),
+        "password" => gettext("Password"),
+        "code" => gettext("Code"),
+        other => other.to_owned(),
+    }
+}
+
+fn form_error_text(key: &str) -> String {
+    match key {
+        "invalid_auth" => gettext("Invalid username or password"),
+        "invalid_code" => gettext("Invalid code"),
+        "invalid_auth_module" => gettext("Choose a two-factor method"),
+        other => format!("{} ({other})", gettext("Sign-in failed")),
+    }
+}
+
+fn abort_text(reason: &str) -> String {
+    match reason {
+        "not_allowed" => gettext("This network may not sign in this way"),
+        "login_expired" => gettext("The sign-in took too long"),
+        "too_many_retry" => gettext("Too many wrong codes"),
+        other => format!("{} ({other})", gettext("Sign-in stopped")),
+    }
+}
+
+fn error_label(message: &str) -> gtk::Label {
+    gtk::Label::builder()
+        .label(message)
+        .wrap(true)
+        .xalign(0.0)
+        .css_classes(["error", "caption"])
+        .build()
+}
+
+fn way_row(title: &str, subtitle: &str, icon: &str) -> adw::ActionRow {
+    let row = adw::ActionRow::builder()
+        .title(glib::markup_escape_text(title))
+        .subtitle(glib::markup_escape_text(subtitle))
+        .activatable(true)
+        .build();
+    row.add_suffix(&gtk::Image::from_icon_name(icon));
+    row
 }

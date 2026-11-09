@@ -111,7 +111,13 @@ impl LoopbackFlow {
             .await
             .map_err(|_| Error::Auth("sign-in was cancelled".into()))??;
         ServerExt::disconnect(&self.server);
-        exchange_code(&self.base, &self.client_id, &code, &self.code_verifier).await
+        exchange_code(
+            &self.base,
+            &self.client_id,
+            &code,
+            Some(&self.code_verifier),
+        )
+        .await
     }
 }
 
@@ -133,94 +139,27 @@ fn authorize_url(
     format!("{}?{query}", base.join("/auth/authorize"))
 }
 
-/// The login page shows the client ID as the app being given access.
+/// Identifies Sanctum to Home Assistant, which lists it with the user's
+/// refresh tokens.
 pub const CLIENT_ID: &str = "https://dunevent.net/sanctum";
 /// Sharing the client ID's host lets Home Assistant accept it without
-/// fetching anything. The sign-in view stops at this address, so it is never
-/// loaded.
-const REDIRECT_URI: &str = "https://dunevent.net/sanctum/auth-callback";
+/// fetching anything. Native sign-in receives its code directly, so nothing
+/// is ever sent here.
+pub const REDIRECT_URI: &str = "https://dunevent.net/sanctum/auth-callback";
 
-/// Sign-in on the Home Assistant login page inside Sanctum.
-pub struct WebFlow {
-    base: ServerUrl,
-    state: String,
-    code_verifier: String,
-    authorize_url: String,
-}
-
-impl WebFlow {
-    pub fn start(base: &ServerUrl) -> Self {
-        let state = glib::uuid_string_random().to_string();
-        let code_verifier = pkce_verifier();
-        let authorize_url = authorize_url(
-            base,
-            CLIENT_ID,
-            REDIRECT_URI,
-            &state,
-            &pkce_challenge(&code_verifier),
-        );
-        Self {
-            base: base.clone(),
-            state,
-            code_verifier,
-            authorize_url,
-        }
-    }
-
-    pub fn authorize_url(&self) -> &str {
-        &self.authorize_url
-    }
-
-    /// The authorization code when `uri` is the redirect, an error when the
-    /// redirect reports one, and `None` for any other page.
-    pub fn callback(&self, uri: &str) -> Option<Result<String>> {
-        let rest = uri.strip_prefix(REDIRECT_URI)?;
-        let query = match rest.strip_prefix('?') {
-            Some(query) => query,
-            None if rest.is_empty() => "",
-            None => return None,
-        };
-        let pairs: std::collections::HashMap<String, String> =
-            url::form_urlencoded::parse(query.as_bytes())
-                .into_owned()
-                .collect();
-        Some(if pairs.get("state") != Some(&self.state) {
-            Err(Error::Auth(
-                "sign-in answered with an unexpected state".into(),
-            ))
-        } else if let Some(code) = pairs.get("code") {
-            Ok(code.clone())
-        } else {
-            Err(Error::Auth(
-                pairs
-                    .get("error")
-                    .cloned()
-                    .unwrap_or_else(|| "sign-in returned no code".into()),
-            ))
-        })
-    }
-
-    pub async fn exchange(&self, code: &str) -> Result<Auth> {
-        exchange_code(&self.base, CLIENT_ID, code, &self.code_verifier).await
-    }
-}
-
-async fn exchange_code(
+pub(super) async fn exchange_code(
     base: &ServerUrl,
     client_id: &str,
     code: &str,
-    code_verifier: &str,
+    code_verifier: Option<&str>,
 ) -> Result<Auth> {
-    let response = http::post_form(
-        &base.join("/auth/token"),
-        &[
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("client_id", client_id),
-            ("code_verifier", code_verifier),
-        ],
-    )
-    .await?;
+    let mut fields = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("client_id", client_id),
+    ];
+    fields.extend(code_verifier.map(|verifier| ("code_verifier", verifier)));
+    let response = http::post_form(&base.join("/auth/token"), &fields).await?;
     let token = parse_token_response(response)?;
     let refresh_token = token
         .refresh_token
@@ -271,16 +210,33 @@ pub async fn revoke(base: &ServerUrl, auth: &Auth) {
     }
 }
 
-/// Home Assistant answers `GET /api/` without a token with 401.
+/// Asks for the sign-in providers, which needs no token. A request that
+/// fails authentication, such as `GET /api/` without a token, makes Home
+/// Assistant post a "Login attempt failed" notification.
 pub async fn probe(base: &ServerUrl) -> Result<()> {
-    let response = http::get(&base.join("/api/"), None).await?;
-    match response.status {
-        200..=299 | 401 => Ok(()),
-        _ => Err(Error::Protocol(format!(
-            "{base} does not look like Home Assistant (HTTP {})",
-            response.status
-        ))),
+    let response = http::get(&base.join("/auth/providers"), None).await?;
+    let providers = response
+        .is_success()
+        .then(|| response.json::<serde_json::Value>().ok())
+        .flatten();
+    if providers.is_some_and(|value| value.is_array() || value.get("providers").is_some()) {
+        return Ok(());
     }
+    let unfinished = response
+        .json::<serde_json::Value>()
+        .ok()
+        .and_then(|value| value.get("code").cloned())
+        .is_some_and(|code| code == "onboarding_required");
+    if unfinished {
+        return Err(Error::Command {
+            message: gettextrs::gettext("Finish setting up Home Assistant in a web browser first"),
+            code: "onboarding_required".to_owned(),
+        });
+    }
+    Err(Error::Protocol(format!(
+        "{base} does not look like Home Assistant (HTTP {})",
+        response.status
+    )))
 }
 
 pub async fn verify_token(base: &ServerUrl, token: &str) -> Result<Auth> {
@@ -354,22 +310,6 @@ mod tests {
             pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
-    }
-
-    #[test]
-    fn reads_web_callback() {
-        let base = ServerUrl::parse("http://ha.local:8123").unwrap();
-        let flow = WebFlow::start(&base);
-        assert!(
-            flow.authorize_url()
-                .starts_with("http://ha.local:8123/auth/authorize?")
-        );
-        assert!(flow.callback("http://ha.local:8123/lovelace").is_none());
-        assert!(flow.callback(&format!("{REDIRECT_URI}x")).is_none());
-        let good = format!("{REDIRECT_URI}?code=abc&state={}", flow.state);
-        assert_eq!(flow.callback(&good).unwrap().unwrap(), "abc");
-        let forged = format!("{REDIRECT_URI}?code=abc&state=other");
-        assert!(flow.callback(&forged).unwrap().is_err());
     }
 
     #[test]
