@@ -545,7 +545,7 @@ impl Application {
 
     pub async fn sign_out(&self) {
         let client = self.client();
-        self.agent().stop_location();
+        self.agent().pause();
         if let Some(credentials) = client.credentials() {
             client.set_credentials(None);
             ha::auth::revoke(&credentials.server, &credentials.auth).await;

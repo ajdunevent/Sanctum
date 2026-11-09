@@ -1,6 +1,6 @@
 [package]
 name = "sanctum"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["AJ <aj@dunevent.net>"]
 edition = "2024"
 rust-version = "1.85"
@@ -22,6 +22,7 @@ gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 gst = { package = "gstreamer", version = "0.25" }
 gst-app = { package = "gstreamer-app", version = "0.25" }
 libsecret = { version = "0.9", features = ["v0_21"] }
+libc = "0.2"
 rxing = { version = "0.9", default-features = false, features = ["decoders", "full_barcode_format_support", "encoding_rs"] }
 log = { version = "0.4", features = ["std"] }
 serde = { version = "1", features = ["derive"] }

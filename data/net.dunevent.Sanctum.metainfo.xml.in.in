@@ -72,6 +72,15 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.0.3" date="2026-11-09">
+      <description>
+        <p>Fixes leftover background processes.</p>
+        <ul>
+          <li>The volume watcher stops when Sanctum quits, is closed by the system, signs out or switches to Front End, so copies no longer pile up</li>
+          <li>Helper commands that stop answering are ended after ten seconds</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-11-09">
       <description>
         <p>A native sign-in and a clearer welcome page.</p>

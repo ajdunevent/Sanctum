@@ -226,14 +226,14 @@ impl Agent {
         self.imp().location_sent_at.get()
     }
 
-    /// Starts reading and reporting. Calling it again resumes after `pause` or
-    /// `stop_location`.
+    /// Starts reading and reporting. Calling it again resumes after `pause`.
     pub fn start(&self) {
         let imp = self.imp();
         if imp.started.replace(true) {
             if imp.paused.replace(false) {
                 self.schedule_poll();
                 self.on_connection(self.client().state());
+                self.watch_audio();
             }
             self.apply_location();
             return;
@@ -444,8 +444,12 @@ impl Agent {
         }
     }
 
-    /// `pactl subscribe` is restarted a while after the sound server goes away.
+    /// `pactl subscribe` is restarted a while after the sound server goes
+    /// away, unless the agent was paused in the meantime.
     fn watch_audio(&self) {
+        if self.imp().audio_watch.borrow().is_some() {
+            return;
+        }
         let weak = self.downgrade();
         let Some(process) = control::audio::watch(move || {
             if let Some(agent) = weak.upgrade() {
@@ -456,16 +460,31 @@ impl Agent {
         };
         let weak = self.downgrade();
         let exited = process.wait_future();
+        let watched = process.clone();
         glib::spawn_future_local(async move {
             let _ = exited.await;
+            let Some(agent) = weak.upgrade() else { return };
+            let imp = agent.imp();
+            if imp.audio_watch.borrow().as_ref() == Some(&watched) {
+                imp.audio_watch.replace(None);
+            }
+            let weak = agent.downgrade();
             glib::timeout_add_seconds_local_once(AUDIO_RESTART, move || {
-                if let Some(agent) = weak.upgrade() {
+                if let Some(agent) = weak.upgrade()
+                    && !agent.imp().paused.get()
+                {
                     agent.refresh(Source::Controls);
                     agent.watch_audio();
                 }
             });
         });
         self.imp().audio_watch.replace(Some(process));
+    }
+
+    fn stop_audio_watch(&self) {
+        if let Some(process) = self.imp().audio_watch.take() {
+            process.force_exit();
+        }
     }
 
     /// Re-reads one source shortly, folding bursts of signals into one read.
@@ -765,7 +784,8 @@ impl Agent {
         }
     }
 
-    /// For front-end use: readings, location and sending stop until `start`.
+    /// For front-end use and sign-out: readings, location and sending stop
+    /// until `start`.
     pub fn pause(&self) {
         let imp = self.imp();
         imp.paused.set(true);
@@ -775,12 +795,11 @@ impl Agent {
         if let Some(source) = imp.flush_source.take() {
             source.remove();
         }
+        self.stop_audio_watch();
         self.stop_location();
     }
 
-    /// Used on sign-out; sensors need no stopping because nothing is sent
-    /// without a connection.
-    pub fn stop_location(&self) {
+    fn stop_location(&self) {
         if let Some(tracker) = self.imp().tracker.get() {
             tracker.stop();
         }

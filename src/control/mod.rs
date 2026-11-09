@@ -226,20 +226,39 @@ pub async fn run(app: &crate::application::Application, command: Command) {
 }
 
 /// Output is requested in the C locale so it can be parsed.
-pub(crate) async fn output(program: &str, args: &[&str]) -> Result<String, String> {
-    let launcher = gtk::gio::SubprocessLauncher::new(
-        gtk::gio::SubprocessFlags::STDOUT_PIPE | gtk::gio::SubprocessFlags::STDERR_PIPE,
-    );
+/// How long a helper such as `pactl` may take before it is stopped.
+const OUTPUT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Helpers are stopped when Sanctum exits, however it exits. Without this a
+/// helper outlives a quit or a kill and keeps running on its own.
+pub(crate) fn launcher(flags: gtk::gio::SubprocessFlags) -> gtk::gio::SubprocessLauncher {
+    let launcher = gtk::gio::SubprocessLauncher::new(flags);
     launcher.setenv("LC_ALL", "C", true);
+    launcher.set_child_setup(|| {
+        // SAFETY: runs in the forked child before exec; prctl is
+        // async-signal-safe.
+        unsafe {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+        }
+    });
+    launcher
+}
+
+pub(crate) async fn output(program: &str, args: &[&str]) -> Result<String, String> {
+    let launcher =
+        launcher(gtk::gio::SubprocessFlags::STDOUT_PIPE | gtk::gio::SubprocessFlags::STDERR_PIPE);
     let mut argv: Vec<&std::ffi::OsStr> = vec![program.as_ref()];
     argv.extend(args.iter().map(std::ffi::OsStr::new));
     let process = launcher
         .spawn(&argv)
         .map_err(|err| format!("{program}: {err}"))?;
-    let (stdout, stderr) = process
-        .communicate_utf8_future(None)
-        .await
-        .map_err(|err| format!("{program}: {err}"))?;
+    let Ok(result) =
+        gtk::glib::future_with_timeout(OUTPUT_TIMEOUT, process.communicate_utf8_future(None)).await
+    else {
+        process.force_exit();
+        return Err(format!("{program}: no answer"));
+    };
+    let (stdout, stderr) = result.map_err(|err| format!("{program}: {err}"))?;
     if process.is_successful() {
         Ok(stdout.map(|text| text.to_string()).unwrap_or_default())
     } else {

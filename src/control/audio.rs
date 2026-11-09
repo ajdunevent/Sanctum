@@ -60,9 +60,7 @@ pub async fn set_muted(switch: Switch) -> Result<(), String> {
 }
 
 pub fn watch(f: impl Fn() + 'static) -> Option<gio::Subprocess> {
-    let launcher = gio::SubprocessLauncher::new(gio::SubprocessFlags::STDOUT_PIPE);
-    launcher.setenv("LC_ALL", "C", true);
-    let process = launcher
+    let process = super::launcher(gio::SubprocessFlags::STDOUT_PIPE)
         .spawn(&[PACTL.as_ref(), "subscribe".as_ref()])
         .ok()?;
     let stdout = process.stdout_pipe()?;
