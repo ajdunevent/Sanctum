@@ -10,6 +10,7 @@ mod ha;
 mod launcher;
 mod model;
 mod notify;
+mod reregister;
 mod server_settings;
 mod ui;
 mod voice;

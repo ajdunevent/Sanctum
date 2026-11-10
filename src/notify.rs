@@ -219,6 +219,13 @@ impl Notifier {
         self.generation.set(self.generation.get() + 1);
     }
 
+    /// After a new registration, whose webhook ID differs.
+    pub fn resubscribe(self: &Rc<Self>) {
+        if self.started.get() {
+            self.on_connection(self.client.state());
+        }
+    }
+
     fn on_connection(self: &Rc<Self>, state: ConnectionState) {
         self.generation.set(self.generation.get() + 1);
         if state != ConnectionState::Connected || self.paused.get() {
@@ -253,6 +260,10 @@ impl Notifier {
             .await;
         let mut subscription = match subscription {
             Ok(subscription) => subscription,
+            Err(ha::Error::Command { code, .. }) if code == "not_found" => {
+                crate::ui::app().registration_lost();
+                return;
+            }
             Err(err) => {
                 log::warn!("Could not subscribe to notifications: {err}");
                 return;

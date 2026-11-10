@@ -11,8 +11,12 @@ use crate::config::{APP_ID, VERSION};
 use crate::ha;
 use crate::model::Store;
 use crate::notify::{self, Click, Notifier};
+use crate::reregister::Reregistration;
 use crate::server_settings::ServerSettings;
 use crate::ui::{AssistWindow, PreferencesDialog, Window};
+
+/// The ID of the notification sent when automatic registration gives up.
+const REGISTRATION_NOTIFICATION: &str = "registration";
 
 mod imp {
     use super::*;
@@ -24,6 +28,7 @@ mod imp {
         pub store: Store,
         pub agent: Agent,
         pub notifier: std::cell::OnceCell<std::rc::Rc<Notifier>>,
+        pub reregistration: Reregistration,
         pub window: glib::WeakRef<Window>,
         pub assist_window: glib::WeakRef<AssistWindow>,
         pub background_hold: RefCell<Option<gio::ApplicationHoldGuard>>,
@@ -48,6 +53,7 @@ mod imp {
                 store,
                 agent,
                 notifier: Default::default(),
+                reregistration: Default::default(),
                 window: Default::default(),
                 assist_window: Default::default(),
                 background_hold: Default::default(),
@@ -199,14 +205,9 @@ impl Application {
     }
 
     pub async fn use_as_companion(&self, device_name: &str) -> ha::Result<()> {
-        let client = self.client().clone();
-        let credentials = client.credentials().ok_or(ha::Error::NotConnected)?;
-        let base = ha::ServerUrl::parse(&client.active_url()).unwrap_or(credentials.server);
-        let token = client.fresh_access_token().await?;
-        let device = ha::device::DeviceInfo::detect(device_name);
-        let registration =
-            ha::registration::register(&base, &token, &credentials.device_id, &device).await?;
-        client.replace_registration(registration).await;
+        let registration = self.request_registration(device_name).await?;
+        self.clear_registration_alert();
+        self.client().replace_registration(registration).await;
         let server = self.server();
         let _ = server.set_string("device-name", device_name);
         let _ = server.set_string("app-mode", "companion");
@@ -215,9 +216,106 @@ impl Application {
         Ok(())
     }
 
+    async fn request_registration(
+        &self,
+        device_name: &str,
+    ) -> ha::Result<ha::credentials::Registration> {
+        let client = self.client();
+        let credentials = client.credentials().ok_or(ha::Error::NotConnected)?;
+        let base = ha::ServerUrl::parse(&client.active_url()).unwrap_or(credentials.server);
+        let token = client.fresh_access_token().await?;
+        let device = ha::device::DeviceInfo::detect(device_name);
+        ha::registration::register(&base, &token, &credentials.device_id, &device).await
+    }
+
+    /// For a webhook or notification subscription that Home Assistant no
+    /// longer recognizes.
+    pub fn registration_lost(&self) {
+        if !self.is_signed_in() || !self.is_companion() {
+            return;
+        }
+        let Some(generation) = self.imp().reregistration.begin() else {
+            return;
+        };
+        log::warn!("Home Assistant no longer has this device's registration; registering again");
+        let app = self.clone();
+        glib::spawn_future_local(async move {
+            let client = app.client().clone();
+            let name = app.server().string("device-name");
+            let registration = app
+                .imp()
+                .reregistration
+                .run(generation, &client, || app.request_registration(&name))
+                .await;
+            match registration {
+                Some(registration) => app.apply_registration(registration).await,
+                None if app.imp().reregistration.gave_up() => app.show_registration_alert(),
+                None => {}
+            }
+        });
+    }
+
+    /// One attempt for the Register Again button, with errors shown as a
+    /// toast.
+    fn register_again(&self) {
+        self.present_main_window();
+        let app = self.clone();
+        glib::spawn_future_local(async move {
+            let name = app.server().string("device-name");
+            match app.request_registration(&name).await {
+                Ok(registration) => {
+                    app.clear_registration_alert();
+                    app.apply_registration(registration).await;
+                }
+                Err(err) => {
+                    log::warn!("Could not register the device again: {err}");
+                    if let Some(window) = app.imp().window.upgrade() {
+                        window.show_toast(&crate::ui::error_text(&err));
+                    }
+                }
+            }
+        });
+    }
+
+    async fn apply_registration(&self, registration: ha::credentials::Registration) {
+        self.client().replace_registration(registration).await;
+        self.agent().resend_all();
+        self.notifier().resubscribe();
+    }
+
+    pub fn registration_alert(&self) -> bool {
+        self.imp().reregistration.gave_up()
+    }
+
+    fn show_registration_alert(&self) {
+        let window = self.imp().window.upgrade();
+        if let Some(window) = &window {
+            window.set_registration_alert(true);
+        }
+        if window.is_some_and(|window| window.is_visible()) {
+            return;
+        }
+        let notification = gio::Notification::new(&gettext("Not Registered in Home Assistant"));
+        notification.set_body(Some(&gettext(
+            "Notifications and sensor updates are off until this device is registered again.",
+        )));
+        notification.add_button(&gettext("Register Again"), "app.register-again");
+        self.send_notification(Some(REGISTRATION_NOTIFICATION), &notification);
+    }
+
+    /// Also stops automatic attempts.
+    fn clear_registration_alert(&self) {
+        self.imp().reregistration.cancel();
+        self.withdraw_notification(REGISTRATION_NOTIFICATION);
+        if let Some(window) = self.imp().window.upgrade() {
+            window.set_registration_alert(false);
+        }
+    }
+
     /// With `remove`, the device is deleted from Home Assistant, which needs
     /// an administrator.
     pub async fn use_as_frontend(&self, remove: bool) -> ha::Result<()> {
+        self.clear_registration_alert();
         self.agent().pause();
         self.notifier().pause();
         let client = self.client().clone();
@@ -545,6 +643,7 @@ impl Application {
 
     pub async fn sign_out(&self) {
         let client = self.client();
+        self.clear_registration_alert();
         self.agent().pause();
         if let Some(credentials) = client.credentials() {
             client.set_credentials(None);
@@ -783,6 +882,12 @@ impl Application {
         let reconnect = gio::ActionEntry::builder("reconnect")
             .activate(|app: &Self, _, _| app.client().reconnect())
             .build();
+        let register_again = gio::ActionEntry::builder("register-again")
+            .activate(|app: &Self, _, _| {
+                app.start();
+                app.register_again();
+            })
+            .build();
         let open_click = gio::ActionEntry::builder("open-click")
             .parameter_type(Some(glib::VariantTy::STRING))
             .activate(|app: &Self, _, target| {
@@ -811,6 +916,7 @@ impl Application {
             assist,
             assist_voice,
             reconnect,
+            register_again,
             open_click,
             notification_action,
         ]);

@@ -198,6 +198,13 @@ template $SanctumWindow: Adw.ApplicationWindow {
               }
             }
           };
+
+          [bottom]
+          Adw.Banner registration_banner {
+            title: _("This device is no longer registered in Home Assistant");
+            button-label: _("_Register Again");
+            action-name: "app.register-again";
+          }
         };
       }
     };

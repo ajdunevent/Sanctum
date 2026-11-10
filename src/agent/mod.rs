@@ -118,9 +118,6 @@ mod imp {
         pub(super) fix_unsent: Cell<bool>,
         /// Unix seconds of the last location Home Assistant accepted.
         pub(super) location_sent_at: Cell<i64>,
-        /// Set once a lost registration was renewed this run, so a server that
-        /// keeps rejecting the webhook does not cause a loop.
-        pub(super) renewed: Cell<bool>,
         /// The disabled set as last applied, to find which sensors toggled.
         pub(super) disabled: RefCell<HashSet<String>>,
     }
@@ -730,41 +727,20 @@ impl Agent {
     }
 
     fn on_webhook_error(&self, err: ha::Error) {
-        if err == ha::Error::RegistrationGone && !self.imp().renewed.replace(true) {
-            log::warn!("Device registration was deleted in Home Assistant; registering again");
-            glib::spawn_future_local(glib::clone!(
-                #[weak(rename_to = agent)]
-                self,
-                async move { agent.renew_registration().await }
-            ));
+        if err == ha::Error::RegistrationGone {
+            crate::ui::app().registration_lost();
         } else {
             log::info!("Sensor update failed: {err}");
         }
     }
 
-    async fn renew_registration(&self) {
-        let client = self.client().clone();
-        let Some(credentials) = client.credentials() else {
-            return;
-        };
-        let base = ha::ServerUrl::parse(&client.active_url()).unwrap_or(credentials.server);
-        let result = async {
-            let token = client.fresh_access_token().await?;
-            let device = ha::device::DeviceInfo::detect(&self.server().string("device-name"));
-            ha::registration::register(&base, &token, &credentials.device_id, &device).await
-        }
-        .await;
-        match result {
-            Ok(registration) => {
-                client.replace_registration(registration).await;
-                let imp = self.imp();
-                imp.registered.borrow_mut().clear();
-                let ids: Vec<&'static str> = imp.readings.borrow().keys().copied().collect();
-                imp.dirty.borrow_mut().extend(ids);
-                self.schedule_flush();
-            }
-            Err(err) => log::warn!("Could not register the device again: {err}"),
-        }
+    /// After a new registration, whose webhook has no sensors yet.
+    pub fn resend_all(&self) {
+        let imp = self.imp();
+        imp.registered.borrow_mut().clear();
+        let ids: Vec<&'static str> = imp.readings.borrow().keys().copied().collect();
+        imp.dirty.borrow_mut().extend(ids);
+        self.schedule_flush();
     }
 
     fn apply_location(&self) {

@@ -38,6 +38,8 @@ mod imp {
         #[template_child]
         pub main_view: TemplateChild<adw::ToolbarView>,
         #[template_child]
+        pub registration_banner: TemplateChild<adw::Banner>,
+        #[template_child]
         pub start_controls_box: TemplateChild<gtk::Box>,
         #[template_child]
         pub start_controls: TemplateChild<gtk::WindowControls>,
@@ -374,7 +376,12 @@ impl Window {
         window.build_web_view(app);
         window.connect_sources(app);
         window.update_page();
+        window.set_registration_alert(app.registration_alert());
         window
+    }
+
+    pub fn set_registration_alert(&self, shown: bool) {
+        self.imp().registration_banner.set_revealed(shown);
     }
 
     fn build_web_view(&self, app: &Application) {
