@@ -72,6 +72,15 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.0.5" date="2026-11-09">
+      <description>
+        <p>Recovers when Home Assistant no longer has this device registered.</p>
+        <ul>
+          <li>Sanctum registers the device again on its own, so notifications and sensor updates resume</li>
+          <li>If the server keeps refusing, a banner with Register Again appears, or a notification when no window is open</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.4" date="2026-11-09">
       <description>
         <p>Fixes a crash on FuriOS.</p>
