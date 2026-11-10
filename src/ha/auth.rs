@@ -143,8 +143,8 @@ fn authorize_url(
 /// refresh tokens.
 pub const CLIENT_ID: &str = "https://dunevent.net/sanctum";
 /// Sharing the client ID's host lets Home Assistant accept it without
-/// fetching anything. Native sign-in receives its code directly, so nothing
-/// is ever sent here.
+/// fetching anything. Native sign-in receives its code in a response, so
+/// nothing is sent here.
 pub const REDIRECT_URI: &str = "https://dunevent.net/sanctum/auth-callback";
 
 pub(super) async fn exchange_code(

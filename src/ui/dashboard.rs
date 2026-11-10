@@ -109,7 +109,7 @@ const REDUCE_MOTION: &str = r#"(() => {
   };
 })();"#;
 
-/// Scripts every Home Assistant page needs, the sign-in page included.
+/// Scripts the frontend needs under Software drawing or Reduce Motion.
 pub fn add_compatibility_scripts(content: &webkit::UserContentManager) {
     let app = crate::ui::app();
     let settings = app.settings();
@@ -305,7 +305,7 @@ pub fn start_url(base: &str, path: &str) -> String {
     )
 }
 
-/// Settings shared with the sign-in view.
+/// Settings shared with the Rendering Information view.
 pub fn apply_settings(web: &webkit::WebView) {
     let Some(settings) = webkit::prelude::WebViewExt::settings(web) else {
         return;
@@ -318,7 +318,8 @@ pub fn apply_settings(web: &webkit::WebView) {
     web.set_zoom_level(crate::ui::app().settings().double("web-zoom"));
 }
 
-/// The dashboard only; the sign-in view has no history to swipe through.
+/// The dashboard only; the Rendering Information view has no history to
+/// swipe through.
 fn apply_swipe_navigation(web: &webkit::WebView) {
     if let Some(settings) = webkit::prelude::WebViewExt::settings(web) {
         settings.set_enable_back_forward_navigation_gestures(
@@ -1062,8 +1063,8 @@ impl DashboardView {
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
             let app = crate::ui::app();
-            // A page can ask while the stored sign-in is still being read or
-            // saved; answering "no" then shows the frontend's retry screen.
+            // Answering "no" makes the frontend show its "Unable to connect"
+            // retry screen.
             let started = std::time::Instant::now();
             while app.client().credentials().is_none()
                 && (app.is_loading() || app.is_signed_in())
@@ -1218,7 +1219,7 @@ impl DashboardView {
     }
 }
 
-/// Message bodies arrive as JavaScript objects; JSON is the simplest bridge.
+/// Message bodies arrive as JavaScript objects and are converted through JSON.
 fn parse(value: &webkit::javascriptcore::Value) -> Value {
     value
         .to_json(0)

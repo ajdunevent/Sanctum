@@ -14,10 +14,9 @@ use crate::config::APP_ID;
 /// Paint tiles on CPU threads; compositing stays on the GPU.
 const CPU_PAINTING: &str = "WEBKIT_SKIA_ENABLE_CPU_RENDERING";
 
-/// FuriOS sets this in `/etc/profile.d/zz-furios.sh` because WebKit's web
-/// process sandbox cannot be built there. Sessions that skip
-/// `/etc/profile.d`, such as FuriOS's default boot into a locked Phosh, never
-/// receive it, and WebKit then aborts when the first page opens.
+/// FuriOS sets this in `/etc/profile.d/zz-furios.sh`. Without it, WebKit
+/// aborts on FuriOS when the first page opens, after bwrap fails with "Can't
+/// make symlink at /run/user/32011/wayland-0".
 const WEBKIT_SANDBOX_OFF: &str = "WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS";
 
 /// Whether CPU painting was set up at start.
@@ -67,8 +66,8 @@ pub fn prepare_environment() {
     apply_furios_sandbox_setting();
 }
 
-/// Applies FuriOS's own WebKit setting when the session did not pass it on.
-/// A value set anywhere, even empty, is left alone.
+/// Sets FuriOS's WebKit setting when it is missing from the environment. A
+/// value set anywhere, even empty, is left alone.
 fn apply_furios_sandbox_setting() {
     if std::env::var_os(WEBKIT_SANDBOX_OFF).is_some() || !host_is_furios() {
         return;

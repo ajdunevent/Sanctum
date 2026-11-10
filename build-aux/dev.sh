@@ -4,7 +4,7 @@
 # Prompts for the architecture(s) and what to produce, then writes .flatpak
 # bundles to dist/ and/or installs the build for the current user. Crates and
 # compiled output persist in .flatpak/<arch>/, so only changed code is
-# recompiled. A Flatpak bundle holds a single architecture, so "Both" writes
+# recompiled. A Flatpak bundle holds one architecture, so "Both" writes
 # one file per architecture.
 
 set -euo pipefail
@@ -48,8 +48,8 @@ case $arch_choice in
     *) arches=("$host_arch") ;;
 esac
 
-# A build for another architecture cannot be installed here, so it always
-# produces a file, and "Install only" is offered only for this machine alone.
+# A build for another architecture cannot be installed here, so it produces a
+# file, and "Install only" is offered for this machine alone.
 if [[ ${#arches[@]} -eq 1 && ${arches[0]} != "$host_arch" ]]; then
     target="Flatpak file"
 elif [[ ${#arches[@]} -eq 2 ]]; then

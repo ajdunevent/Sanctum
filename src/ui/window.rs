@@ -555,8 +555,8 @@ impl Window {
         else {
             return;
         };
-        // The rows go first: removing their section destroys their slots,
-        // and a row whose slot is gone can no longer be removed.
+        // Removing the section before its rows logged
+        // gtk_menu_section_box_remove_custom criticals.
         for (popover, row) in imp.page_rows.take() {
             popover.remove_child(&row);
         }

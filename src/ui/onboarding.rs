@@ -359,7 +359,7 @@ impl Onboarding {
                 let mut last_error = None;
                 for (server, asked) in candidates {
                     // A filtered port would otherwise hold the plain HTTP try
-                    // back for the whole session timeout.
+                    // back for the session timeout.
                     let result = glib::future_with_timeout(
                         std::time::Duration::from_secs(8),
                         ha::auth::probe(&server),
@@ -1223,8 +1223,8 @@ impl Onboarding {
         self.show_background();
     }
 
-    /// The background page is about notifications and sensors, which only
-    /// a companion app has, as are two of the intro page's rows.
+    /// The background page and two intro rows cover notifications and
+    /// sensors, which a front end does not have.
     fn show_background(&self) {
         let imp = self.imp();
         let companion = app().is_companion();
@@ -1260,7 +1260,7 @@ impl Onboarding {
     }
 }
 
-/// Forms are either text fields or a single choice list.
+/// Forms are either text fields or one choice list.
 fn renderable(fields: &[Field]) -> bool {
     matches!(fields, [Field::Select { .. }])
         || (!fields.is_empty()

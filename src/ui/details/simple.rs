@@ -6,7 +6,7 @@ use serde_json::json;
 use super::common::{Choice, Slider, Toggle, call, group, pill, slider_row, watch};
 use crate::model::Entity;
 
-/// Controls for domains with a single action or value. Returns `None` for
+/// Controls for domains with one action or value. Returns `None` for
 /// read-only domains such as sensors.
 pub fn build(entity: &Entity) -> Option<gtk::Widget> {
     match entity.domain().as_str() {

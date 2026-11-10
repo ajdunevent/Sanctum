@@ -50,8 +50,8 @@ pub fn build(entity: &Entity) -> gtk::Widget {
         stepper
     });
 
-    // Range devices reject a low or high value sent alone, so both are always
-    // sent together.
+    // Range devices reject a low or high value sent alone, so both are sent
+    // together.
     let range = entity.supports(TARGET_TEMPERATURE_RANGE).then(|| {
         type Pair = Rc<OnceCell<(glib::WeakRef<adw::SpinRow>, glib::WeakRef<adw::SpinRow>)>>;
         let pair: Pair = Rc::default();

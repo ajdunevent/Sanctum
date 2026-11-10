@@ -225,12 +225,11 @@ pub async fn run(app: &crate::application::Application, command: Command) {
     }
 }
 
-/// Output is requested in the C locale so it can be parsed.
 /// How long a helper such as `pactl` may take before it is stopped.
 const OUTPUT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// Helpers are stopped when Sanctum exits, however it exits. Without this a
-/// helper outlives a quit or a kill and keeps running on its own.
+/// Output is requested in the C locale so it can be parsed. Helpers get
+/// SIGTERM when Sanctum exits; without it they outlived a quit or a kill.
 pub(crate) fn launcher(flags: gtk::gio::SubprocessFlags) -> gtk::gio::SubprocessLauncher {
     let launcher = gtk::gio::SubprocessLauncher::new(flags);
     launcher.setenv("LC_ALL", "C", true);

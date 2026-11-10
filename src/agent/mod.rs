@@ -91,7 +91,8 @@ mod imp {
         pub(super) settings: OnceCell<gio::Settings>,
         pub(super) server: OnceCell<std::rc::Rc<crate::server_settings::ServerSettings>>,
         pub(super) started: Cell<bool>,
-        /// Set while Sanctum runs as a front end: nothing is read or sent.
+        /// Set while Sanctum runs as a front end or is signed out: nothing is read
+        /// or sent.
         pub(super) paused: Cell<bool>,
         pub(super) system: RefCell<Option<gio::DBusConnection>>,
         pub(super) session: RefCell<Option<gio::DBusConnection>>,
@@ -555,8 +556,8 @@ impl Agent {
         if source == Source::Network && network_before.is_some() {
             let network_after = self.network_identity();
             if network_after != network_before {
-                // A new network often means a new place, such as leaving home
-                // Wi-Fi, so a fresh fix is requested right away.
+                // A new network can mean a new place, such as leaving home
+                // Wi-Fi, so a fresh fix is requested.
                 self.request_location_update();
             }
         }

@@ -833,7 +833,7 @@ impl AssistWindow {
     }
 
     /// Stops the microphone and tells the server the audio is complete; an
-    /// empty frame with just the handler byte marks the end.
+    /// empty frame with the handler byte alone marks the end.
     fn end_audio(&self, generation: u64) {
         let imp = self.imp();
         if imp.turn_generation.get() != generation {
