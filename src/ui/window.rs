@@ -555,11 +555,13 @@ impl Window {
         else {
             return;
         };
-        if imp.page_section.replace(false) {
-            home.remove(1);
-        }
+        // The rows go first: removing their section destroys their slots,
+        // and a row whose slot is gone can no longer be removed.
         for (popover, row) in imp.page_rows.take() {
             popover.remove_child(&row);
+        }
+        if imp.page_section.replace(false) {
+            home.remove(1);
         }
         for name in imp.page_actions.list_actions() {
             imp.page_actions.remove_action(&name);

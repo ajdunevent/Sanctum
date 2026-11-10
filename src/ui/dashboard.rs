@@ -15,6 +15,9 @@ use super::rendering::Mode;
 use crate::application::Application;
 use crate::ha::trust;
 
+/// How long a token request waits for the sign-in to be available.
+const AUTH_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+
 const GET_AUTH: &str = "getExternalAuth";
 const REVOKE_AUTH: &str = "revokeExternalAuth";
 const BUS: &str = "externalBus";
@@ -1058,7 +1061,23 @@ impl DashboardView {
         let callback = callback.to_owned();
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
-            let result = crate::ui::app().client().fresh_token().await;
+            let app = crate::ui::app();
+            // A page can ask while the stored sign-in is still being read or
+            // saved; answering "no" then shows the frontend's retry screen.
+            let started = std::time::Instant::now();
+            while app.client().credentials().is_none()
+                && (app.is_loading() || app.is_signed_in())
+                && started.elapsed() < AUTH_WAIT
+            {
+                glib::timeout_future(std::time::Duration::from_millis(200)).await;
+            }
+            if started.elapsed() >= std::time::Duration::from_millis(200) {
+                log::debug!(
+                    "Dashboard token waited {:?} for the sign-in",
+                    started.elapsed()
+                );
+            }
+            let result = app.client().fresh_token().await;
             let Some(this) = weak.upgrade() else {
                 return;
             };

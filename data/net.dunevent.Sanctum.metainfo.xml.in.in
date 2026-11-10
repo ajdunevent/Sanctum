@@ -72,6 +72,16 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.0.4" date="2026-11-09">
+      <description>
+        <p>Fixes a crash on FuriOS.</p>
+        <ul>
+          <li>Opening Home Assistant no longer crashes under FuriOS if the webkit sandbox is not disabled</li>
+          <li>The dashboard waits for a sign-in that is still being saved instead of showing “Unable to connect”</li>
+          <li>Quit is now called Quit Sanctum for clarity</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.3" date="2026-11-09">
       <description>
         <p>Fixes leftover background processes.</p>

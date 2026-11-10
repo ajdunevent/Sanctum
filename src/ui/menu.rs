@@ -64,7 +64,7 @@ pub fn own_entries() -> Vec<(&'static str, Entry)> {
             ),
         ),
         ("about", entry(gettext("About Sanctum"), ABOUT, "app.about")),
-        ("quit", entry(gettext("Quit"), QUIT, "app.quit")),
+        ("quit", entry(gettext("Quit Sanctum"), QUIT, "app.quit")),
     ]
 }
 
