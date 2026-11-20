@@ -1,7 +1,6 @@
 use std::cell::OnceCell;
 
-use gtk::glib;
-use gtk::glib::translate::IntoGlib;
+use glib::translate::IntoGlib;
 use serde::de::DeserializeOwned;
 use soup::prelude::*;
 

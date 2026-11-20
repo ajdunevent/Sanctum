@@ -1,7 +1,7 @@
 //! The Sensors page of Preferences: location, polling interval, and one switch
 //! per sensor with its current value.
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -12,6 +12,7 @@ use gtk::glib;
 use super::permission_help::{explain, suffix_button};
 use crate::agent::location::Status;
 use crate::agent::sensor::{Category, DEFINITIONS};
+use crate::agent::{self, Snapshot};
 use crate::application::Application;
 use crate::control::sandbox::Policy;
 use crate::model::present;
@@ -98,25 +99,23 @@ fn location_group(app: &Application) -> adw::PreferencesGroup {
             .build();
     }
 
-    let agent = app.agent().clone();
+    let service = app.service().clone();
     let update = glib::clone!(
         #[weak]
         status,
-        #[weak]
-        agent,
-        move || status.set_subtitle(&location_status(&agent))
+        move || status.set_subtitle(&location_status(&service.snapshot()))
     );
     update();
     watch_agent(app, &group, update);
     group
 }
 
-fn location_status(agent: &crate::agent::Agent) -> String {
-    match agent.location_status() {
+fn location_status(snapshot: &Snapshot) -> String {
+    match snapshot.location.clone() {
         Status::Off => gettext("Off"),
         Status::Starting => gettext("Starting…"),
         Status::Failed(message) => message,
-        Status::Running => match agent.location_sent_at() {
+        Status::Running => match snapshot.location_sent_at {
             0 => gettext("Waiting for a position"),
             sent => gettext("Last reported %s").replacen("%s", &present::ago(sent as f64), 1),
         },
@@ -166,7 +165,7 @@ fn sensor_groups(app: &Application, page: &adw::PreferencesPage) {
     // Set while rows show the agent's state, so their handlers do not write
     // the setting back.
     let quiet = Rc::new(Cell::new(false));
-    let agent = app.agent().clone();
+    let service = app.service().clone();
     let policy = Policy::current();
     let mut rows: HashMap<&'static str, adw::SwitchRow> = HashMap::new();
     for definition in DEFINITIONS {
@@ -193,12 +192,12 @@ fn sensor_groups(app: &Application, page: &adw::PreferencesPage) {
         let id = definition.id;
         row.connect_active_notify(glib::clone!(
             #[weak]
-            agent,
+            app,
             #[strong]
             quiet,
             move |row| {
                 if !quiet.get() {
-                    agent.set_enabled(id, row.is_active());
+                    agent::set_enabled(&app.server(), id, row.is_active());
                 }
             }
         ));
@@ -207,11 +206,11 @@ fn sensor_groups(app: &Application, page: &adw::PreferencesPage) {
     }
     let update = glib::clone!(
         #[weak]
-        agent,
+        app,
         #[weak]
         waiting,
         move || {
-            let readings = agent.readings();
+            let readings = service.snapshot().readings;
             waiting.set_visible(readings.is_empty());
             for reading in readings {
                 let Some(row) = rows.get(reading.id) else {
@@ -221,7 +220,7 @@ fn sensor_groups(app: &Application, page: &adw::PreferencesPage) {
                 groups[&reading.definition().category].set_visible(true);
                 row.set_subtitle(&glib::markup_escape_text(&reading.display()));
                 quiet.set(true);
-                row.set_active(agent.is_enabled(reading.id));
+                row.set_active(agent::is_enabled(&app.server(), reading.id));
                 quiet.set(false);
             }
         }
@@ -230,13 +229,9 @@ fn sensor_groups(app: &Application, page: &adw::PreferencesPage) {
     watch_agent(app, page, update);
 }
 
-/// Runs `f` on every agent change until `widget` is destroyed.
+/// Runs `f` on every change from the service until `widget` is destroyed.
 fn watch_agent(app: &Application, widget: &impl IsA<gtk::Widget>, f: impl Fn() + 'static) {
-    let agent = app.agent().clone();
-    let handler = RefCell::new(Some(agent.connect_changed(move |_| f())));
-    widget.connect_destroy(move |_| {
-        if let Some(handler) = handler.take() {
-            agent.disconnect(handler);
-        }
-    });
+    let service = app.service().clone();
+    let handler = service.connect_changed(f);
+    widget.connect_destroy(move |_| service.disconnect(handler));
 }

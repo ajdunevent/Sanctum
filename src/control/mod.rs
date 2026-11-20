@@ -10,7 +10,7 @@ pub mod ringer;
 pub mod sandbox;
 pub mod settings;
 
-use gtk::gio::prelude::*;
+use gio::prelude::*;
 use serde_json::Value;
 
 use crate::notify::Click;
@@ -178,7 +178,7 @@ pub fn parse(message: &str, data: &Value) -> Option<Command> {
 
 /// Whether the user allows this command, from the switches on the Controls
 /// page.
-pub fn allowed(settings: &gtk::gio::Settings, command: &Command) -> bool {
+pub fn allowed(settings: &gio::Settings, command: &Command) -> bool {
     settings.boolean("device-commands")
         && command.kind().is_none_or(|kind| {
             !settings
@@ -188,7 +188,14 @@ pub fn allowed(settings: &gtk::gio::Settings, command: &Command) -> bool {
         })
 }
 
-pub async fn run(app: &crate::application::Application, command: Command) {
+/// Commands the window app carries out.
+#[derive(Debug)]
+pub enum Forward {
+    Open(crate::notify::Click),
+    StopPlayback,
+}
+
+pub async fn run(agent: &crate::agent::Agent, command: Command, forward: impl Fn(Forward)) {
     let result = match &command {
         Command::Volume(level) => audio::set_volume(*level).await,
         Command::Mute(switch) => audio::set_muted(*switch).await,
@@ -203,15 +210,15 @@ pub async fn run(app: &crate::application::Application, command: Command) {
         Command::Brightness(level) => display::set_brightness(*level).await,
         Command::Flashlight(switch) => display::set_flashlight(*switch).await,
         Command::UpdateSensors => {
-            app.agent().refresh_all();
+            agent.refresh_all();
             Ok(())
         }
         Command::StopTts => {
-            crate::voice::stop_playback();
+            forward(Forward::StopPlayback);
             Ok(())
         }
         Command::Open(click) => {
-            app.activate_action("open-click", Some(&click.target().to_variant()));
+            forward(Forward::Open(click.clone()));
             Ok(())
         }
         Command::Unsupported { command, reason } => Err(format!("{command}: {reason}")),
@@ -219,7 +226,7 @@ pub async fn run(app: &crate::application::Application, command: Command) {
     match result {
         Ok(()) => {
             log::info!("Ran device command {command:?}");
-            app.agent().refresh_controls();
+            agent.refresh_controls();
         }
         Err(err) => log::warn!("Device command failed: {err}"),
     }
@@ -230,8 +237,8 @@ const OUTPUT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Output is requested in the C locale so it can be parsed. Helpers get
 /// SIGTERM when Sanctum exits; without it they outlived a quit or a kill.
-pub(crate) fn launcher(flags: gtk::gio::SubprocessFlags) -> gtk::gio::SubprocessLauncher {
-    let launcher = gtk::gio::SubprocessLauncher::new(flags);
+pub(crate) fn launcher(flags: gio::SubprocessFlags) -> gio::SubprocessLauncher {
+    let launcher = gio::SubprocessLauncher::new(flags);
     launcher.setenv("LC_ALL", "C", true);
     launcher.set_child_setup(|| {
         // SAFETY: runs in the forked child before exec; prctl is
@@ -244,15 +251,14 @@ pub(crate) fn launcher(flags: gtk::gio::SubprocessFlags) -> gtk::gio::Subprocess
 }
 
 pub(crate) async fn output(program: &str, args: &[&str]) -> Result<String, String> {
-    let launcher =
-        launcher(gtk::gio::SubprocessFlags::STDOUT_PIPE | gtk::gio::SubprocessFlags::STDERR_PIPE);
+    let launcher = launcher(gio::SubprocessFlags::STDOUT_PIPE | gio::SubprocessFlags::STDERR_PIPE);
     let mut argv: Vec<&std::ffi::OsStr> = vec![program.as_ref()];
     argv.extend(args.iter().map(std::ffi::OsStr::new));
     let process = launcher
         .spawn(&argv)
         .map_err(|err| format!("{program}: {err}"))?;
     let Ok(result) =
-        gtk::glib::future_with_timeout(OUTPUT_TIMEOUT, process.communicate_utf8_future(None)).await
+        glib::future_with_timeout(OUTPUT_TIMEOUT, process.communicate_utf8_future(None)).await
     else {
         process.force_exit();
         return Err(format!("{program}: no answer"));

@@ -6,7 +6,6 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use gio::prelude::*;
-use gtk::glib;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CertificateInfo {

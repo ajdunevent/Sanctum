@@ -2,9 +2,6 @@
 
 use std::collections::HashMap;
 
-use gtk::gio;
-use gtk::glib;
-
 use super::dbus::{self, PropertyMap};
 use super::sensor::Reading;
 

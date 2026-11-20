@@ -1,4 +1,3 @@
-use gtk::glib;
 use serde_json::{Map, Value, json};
 
 use super::client::Client;

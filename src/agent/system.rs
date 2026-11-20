@@ -4,9 +4,6 @@
 use std::cell::Cell;
 use std::fs;
 
-use gtk::gio;
-use gtk::glib;
-
 use super::dbus::{self, PropertyMap};
 use super::sensor::Reading;
 

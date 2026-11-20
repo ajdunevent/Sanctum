@@ -16,11 +16,9 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
-use gtk::glib::subclass::Signal;
-use gtk::glib::subclass::prelude::*;
+use gio::prelude::*;
+use glib::subclass::Signal;
+use glib::subclass::prelude::*;
 use serde_json::Value;
 
 use crate::control;
@@ -132,13 +130,118 @@ mod imp {
         fn signals() -> &'static [Signal] {
             static SIGNALS: OnceLock<Vec<Signal>> = OnceLock::new();
             // Readings or location status changed; settings pages refresh on it.
-            SIGNALS.get_or_init(|| vec![Signal::builder("changed").build()])
+            SIGNALS.get_or_init(|| {
+                vec![
+                    Signal::builder("changed").build(),
+                    // Home Assistant answered that the webhook no longer exists.
+                    Signal::builder("registration-lost").build(),
+                ]
+            })
         }
     }
 }
 
 glib::wrapper! {
     pub struct Agent(ObjectSubclass<imp::Agent>);
+}
+
+/// The agent's state for the Sensors page, which runs in the window app and
+/// receives it from the service as JSON.
+#[derive(Clone, Debug, Default)]
+pub struct Snapshot {
+    pub readings: Vec<Reading>,
+    pub location: Status,
+    /// Unix seconds, or 0 before the first report.
+    pub location_sent_at: i64,
+}
+
+impl Snapshot {
+    pub fn to_json(&self) -> String {
+        let readings: Vec<Value> = self
+            .readings
+            .iter()
+            .map(|reading| {
+                serde_json::json!({
+                    "id": reading.id,
+                    "state": reading.state,
+                    "attributes": reading.attributes,
+                    "icon": reading.icon,
+                })
+            })
+            .collect();
+        let (status, message) = match &self.location {
+            Status::Off => ("off", ""),
+            Status::Starting => ("starting", ""),
+            Status::Running => ("running", ""),
+            Status::Failed(message) => ("failed", message.as_str()),
+        };
+        serde_json::json!({
+            "readings": readings,
+            "location": status,
+            "location_message": message,
+            "location_sent_at": self.location_sent_at,
+        })
+        .to_string()
+    }
+
+    /// Readings from a different version with unknown IDs are dropped.
+    pub fn from_json(text: &str) -> Self {
+        let Ok(value) = serde_json::from_str::<Value>(text) else {
+            return Self::default();
+        };
+        let readings = value["readings"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|entry| {
+                let definition = sensor::definition(entry["id"].as_str()?)?;
+                let mut reading = Reading::new(definition.id, entry["state"].clone());
+                if let Some(attributes) = entry["attributes"].as_object() {
+                    reading.attributes = attributes.clone();
+                }
+                reading.icon = entry["icon"].as_str().map(str::to_owned);
+                Some(reading)
+            })
+            .collect();
+        let location = match value["location"].as_str() {
+            Some("starting") => Status::Starting,
+            Some("running") => Status::Running,
+            Some("failed") => Status::Failed(
+                value["location_message"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+            ),
+            _ => Status::Off,
+        };
+        Self {
+            readings,
+            location,
+            location_sent_at: value["location_sent_at"].as_i64().unwrap_or(0),
+        }
+    }
+}
+
+/// Which sensors are off is kept per server.
+pub fn is_enabled(server: &gio::Settings, id: &str) -> bool {
+    !server
+        .strv("disabled-sensors")
+        .iter()
+        .any(|disabled| disabled == id)
+}
+
+pub fn set_enabled(server: &gio::Settings, id: &str, enabled: bool) {
+    let mut disabled: Vec<String> = server
+        .strv("disabled-sensors")
+        .iter()
+        .map(|value| value.to_string())
+        .filter(|value| value != id)
+        .collect();
+    if !enabled {
+        disabled.push(id.to_owned());
+    }
+    let _ = server.set_strv("disabled-sensors", disabled);
 }
 
 impl Agent {
@@ -190,25 +293,7 @@ impl Agent {
     }
 
     pub fn is_enabled(&self, id: &str) -> bool {
-        !self
-            .server()
-            .strv("disabled-sensors")
-            .iter()
-            .any(|disabled| disabled == id)
-    }
-
-    pub fn set_enabled(&self, id: &str, enabled: bool) {
-        let mut disabled: Vec<String> = self
-            .server()
-            .strv("disabled-sensors")
-            .iter()
-            .map(|value| value.to_string())
-            .filter(|value| value != id)
-            .collect();
-        if !enabled {
-            disabled.push(id.to_owned());
-        }
-        let _ = self.server().set_strv("disabled-sensors", disabled);
+        is_enabled(&self.server(), id)
     }
 
     pub fn location_status(&self) -> Status {
@@ -726,9 +811,26 @@ impl Agent {
         }
     }
 
+    pub fn connect_registration_lost<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
+        self.connect_local("registration-lost", false, move |values| {
+            let agent = values[0].get::<Self>().expect("signal emitter is an Agent");
+            f(&agent);
+            None
+        })
+    }
+
+    /// What the Sensors page shows.
+    pub fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            readings: self.readings(),
+            location: self.location_status(),
+            location_sent_at: self.location_sent_at(),
+        }
+    }
+
     fn on_webhook_error(&self, err: ha::Error) {
         if err == ha::Error::RegistrationGone {
-            crate::ui::app().registration_lost();
+            self.emit_by_name::<()>("registration-lost", &[]);
         } else {
             log::info!("Sensor update failed: {err}");
         }
@@ -885,4 +987,33 @@ async fn read_controls() -> Vec<Reading> {
         readings.push(reading);
     }
     readings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_round_trip() {
+        let snapshot = Snapshot {
+            readings: vec![Reading::new("memory_usage", 14.3).attribute("total", 4096)],
+            location: Status::Failed("No portal".into()),
+            location_sent_at: 1_700_000_000,
+        };
+        let read = Snapshot::from_json(&snapshot.to_json());
+        assert_eq!(read.readings.len(), 1);
+        assert_eq!(read.readings[0].id, "memory_usage");
+        assert_eq!(read.readings[0].state, serde_json::json!(14.3));
+        assert_eq!(read.readings[0].attributes["total"], 4096);
+        assert_eq!(read.location, Status::Failed("No portal".into()));
+        assert_eq!(read.location_sent_at, 1_700_000_000);
+    }
+
+    #[test]
+    fn snapshot_drops_unknown_sensors() {
+        let read = Snapshot::from_json(r#"{"readings":[{"id":"from_a_newer_version"}]}"#);
+        assert!(read.readings.is_empty());
+        assert_eq!(read.location, Status::Off);
+        assert!(Snapshot::from_json("not json").readings.is_empty());
+    }
 }

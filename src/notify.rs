@@ -6,9 +6,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use futures_util::StreamExt;
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
+use gio::prelude::*;
 use serde_json::{Value, json};
 
 use crate::ha::{self, ConnectionState, webhook};
@@ -174,9 +172,19 @@ pub fn action_event(action: &str, tag: &str, title: &str, message: &str) -> Valu
     json!({ "event_type": "mobile_app_notification_action", "event_data": data })
 }
 
+/// Push messages the notifier does not handle itself.
+#[derive(Debug)]
+pub enum Event {
+    /// Home Assistant does not recognize the webhook ID.
+    RegistrationLost,
+    RequestLocation,
+    Command(crate::control::Command),
+}
+
 pub struct Notifier {
     app: glib::WeakRef<gio::Application>,
     client: ha::Client,
+    on_event: Box<dyn Fn(Event)>,
     started: Cell<bool>,
     paused: Cell<bool>,
     counter: Cell<u64>,
@@ -185,10 +193,15 @@ pub struct Notifier {
 }
 
 impl Notifier {
-    pub fn new(app: &impl IsA<gio::Application>, client: &ha::Client) -> Rc<Self> {
+    pub fn new(
+        app: &impl IsA<gio::Application>,
+        client: &ha::Client,
+        on_event: impl Fn(Event) + 'static,
+    ) -> Rc<Self> {
         Rc::new(Self {
             app: app.upcast_ref::<gio::Application>().downgrade(),
             client: client.clone(),
+            on_event: Box::new(on_event),
             started: Cell::new(false),
             paused: Cell::new(false),
             counter: Cell::new(0),
@@ -261,7 +274,7 @@ impl Notifier {
         let mut subscription = match subscription {
             Ok(subscription) => subscription,
             Err(ha::Error::Command { code, .. }) if code == "not_found" => {
-                crate::ui::app().registration_lost();
+                (self.on_event)(Event::RegistrationLost);
                 return;
             }
             Err(err) => {
@@ -296,16 +309,9 @@ impl Notifier {
         };
         match push {
             Push::Clear { tag } => app.withdraw_notification(&format!("{ID_PREFIX}{tag}")),
-            Push::RequestLocation => crate::ui::app().agent().request_location_update(),
+            Push::RequestLocation => (self.on_event)(Event::RequestLocation),
             Push::Unsupported(message) => log::info!("Ignoring push message {message}"),
-            Push::Command(command) => {
-                let app = crate::ui::app();
-                if !crate::control::allowed(app.settings(), &command) {
-                    log::info!("Device command turned off in Preferences: {command:?}");
-                    return;
-                }
-                glib::spawn_future_local(async move { crate::control::run(&app, command).await });
-            }
+            Push::Command(command) => (self.on_event)(Event::Command(command)),
             Push::Show(notice) => {
                 self.counter.set(self.counter.get() + 1);
                 let id = notice.id(self.counter.get());
@@ -392,26 +398,26 @@ impl Notifier {
             }
         }
     }
+}
 
-    /// Fires the action event. A button pressed after Sanctum quit starts it
-    /// through D-Bus with no window, so the app is held until the event is
-    /// sent or the connection does not come up.
-    pub fn send_action(&self, event: Value) {
-        let hold = self.app.upgrade().map(|app| app.hold());
-        let client = self.client.clone();
-        glib::spawn_future_local(async move {
-            for _ in 0..CONNECT_WAIT_STEPS {
-                if client.state() == ConnectionState::Connected {
-                    break;
-                }
-                glib::timeout_future(CONNECT_WAIT_STEP).await;
+/// Fires the action event. A button pressed while the app was not running
+/// starts it through D-Bus with no window, so `app` is held until the event is
+/// sent or the connection does not come up.
+pub fn send_action(app: &impl IsA<gio::Application>, client: &ha::Client, event: Value) {
+    let hold = app.hold();
+    let client = client.clone();
+    glib::spawn_future_local(async move {
+        for _ in 0..CONNECT_WAIT_STEPS {
+            if client.state() == ConnectionState::Connected {
+                break;
             }
-            if let Err(err) = webhook::send(&client, "fire_event", event).await {
-                log::warn!("Could not send notification action: {err}");
-            }
-            drop(hold);
-        });
-    }
+            glib::timeout_future(CONNECT_WAIT_STEP).await;
+        }
+        if let Err(err) = webhook::send(&client, "fire_event", event).await {
+            log::warn!("Could not send notification action: {err}");
+        }
+        drop(hold);
+    });
 }
 
 #[cfg(test)]

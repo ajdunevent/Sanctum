@@ -1,7 +1,5 @@
 use std::fs;
 
-use gtk::glib;
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DeviceInfo {
     pub name: String,

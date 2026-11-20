@@ -5,9 +5,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
+use gio::prelude::*;
 
 use crate::config::APP_ID;
 
@@ -134,6 +132,34 @@ impl ServerSettings {
             current
         };
         let _ = server.set_string("app-mode", mode_name(companion));
+    }
+
+    pub fn is_signed_in(&self, app: &gio::Settings) -> bool {
+        !app.string("server").is_empty() && !self.get().string("url").is_empty()
+    }
+
+    pub fn is_companion(&self) -> bool {
+        self.get().string("app-mode") == mode_name(true)
+    }
+
+    pub fn endpoints(
+        &self,
+        registration: Option<&crate::ha::credentials::Registration>,
+    ) -> crate::ha::endpoints::Endpoints {
+        let settings = self.get();
+        let url = |key: &str| crate::ha::ServerUrl::parse(&settings.string(key)).ok();
+        crate::ha::endpoints::Endpoints {
+            internal: url("internal-url"),
+            external: url("external-url"),
+            remote_ui: registration
+                .and_then(|registration| registration.remote_ui_url.as_deref())
+                .and_then(|value| crate::ha::ServerUrl::parse(value).ok()),
+            home_networks: settings
+                .strv("home-networks")
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        }
     }
 
     /// Clears everything stored for the current server.

@@ -2,7 +2,6 @@
 //! network, otherwise the external URL, then the Nabu Casa remote UI URL.
 
 use gio::prelude::*;
-use gtk::glib;
 
 use super::server::ServerUrl;
 

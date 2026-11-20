@@ -6,8 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gtk::gio;
-use gtk::glib::prelude::*;
+use glib::prelude::*;
 
 use super::Switch;
 use crate::agent::dbus::{self, PropertyMap};

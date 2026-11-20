@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use gettextrs::{gettext, ngettext};
-use gtk::glib;
 use serde_json::{Map, Value};
 
 static BUNDLED_ICONS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {

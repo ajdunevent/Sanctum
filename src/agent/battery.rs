@@ -4,8 +4,6 @@
 use std::fs;
 use std::path::Path;
 
-use gtk::gio;
-
 use super::dbus::{self, PropertyMap};
 use super::sensor::{Reading, battery_icon};
 

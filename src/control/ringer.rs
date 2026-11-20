@@ -1,4 +1,4 @@
-use gtk::glib::prelude::*;
+use glib::prelude::*;
 
 use crate::agent::dbus::{self, PropertyMap};
 
@@ -55,7 +55,7 @@ pub async fn trigger(event: &str) {
     let Some(session) = dbus::session().await else {
         return;
     };
-    let hints: std::collections::HashMap<String, gtk::glib::Variant> = Default::default();
+    let hints: std::collections::HashMap<String, glib::Variant> = Default::default();
     if let Err(err) = dbus::call(
         &session,
         FEEDBACKD,

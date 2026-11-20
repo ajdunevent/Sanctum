@@ -2,11 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 use futures_channel::{mpsc, oneshot};
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
-use gtk::glib::subclass::prelude::*;
-use gtk::glib::translate::{IntoGlib, ToGlibPtr};
+use gio::prelude::*;
+use glib::subclass::prelude::*;
+use glib::translate::{IntoGlib, ToGlibPtr};
 use serde_json::{Value, json};
 use soup::prelude::*;
 
@@ -380,8 +378,8 @@ impl Client {
         if credentials.auth.needs_refresh(auth::now()) {
             match auth::refresh(&server, &credentials.auth).await {
                 Ok(refreshed) => {
-                    credentials.auth = refreshed;
-                    self.store_credentials(credentials.clone()).await;
+                    credentials.auth = refreshed.clone();
+                    self.store_auth(refreshed).await;
                 }
                 Err(err) => {
                     self.fail(generation, err);
@@ -591,15 +589,14 @@ impl Client {
             #[weak(rename_to = obj)]
             self,
             async move {
-                let Some(mut credentials) = obj.credentials() else {
+                let Some(credentials) = obj.credentials() else {
                     return;
                 };
                 let server = ServerUrl::parse(&obj.active_url())
                     .unwrap_or_else(|_| credentials.server.clone());
                 match auth::refresh(&server, &credentials.auth).await {
                     Ok(refreshed) => {
-                        credentials.auth = refreshed;
-                        obj.store_credentials(credentials).await;
+                        obj.store_auth(refreshed).await;
                         if obj.imp().generation.get() == generation {
                             obj.connect_inner(generation).await;
                         }
@@ -626,7 +623,7 @@ impl Client {
             let server =
                 ServerUrl::parse(&self.active_url()).unwrap_or_else(|_| credentials.server.clone());
             credentials.auth = auth::refresh(&server, &credentials.auth).await?;
-            self.store_credentials(credentials.clone()).await;
+            self.store_auth(credentials.auth.clone()).await;
         }
         let now = glib::real_time() / 1_000_000;
         Ok((
@@ -646,6 +643,42 @@ impl Client {
             credentials.registration = registration;
             self.store_credentials(credentials).await;
         }
+    }
+
+    /// Takes the registration saved in the keyring, which the service
+    /// replaces when it registers the device again.
+    pub async fn load_stored_registration(&self) {
+        let Some(mut current) = self.credentials() else {
+            return;
+        };
+        let Ok(Some(stored)) = credentials::load(&current.server).await else {
+            return;
+        };
+        if stored.registration != current.registration {
+            current.registration = stored.registration;
+            self.imp().credentials.replace(Some(current));
+            self.emit_by_name::<()>("credentials-changed", &[]);
+        }
+    }
+
+    /// Saves a refreshed token over the stored credentials, whose registration
+    /// may be newer than this process's copy: the window app and the service
+    /// both refresh tokens, and only the service registers again on its own.
+    async fn store_auth(&self, auth: credentials::Auth) {
+        let Some(mut current) = self.credentials() else {
+            return;
+        };
+        current.auth = auth;
+        let mut stored = match credentials::load(&current.server).await {
+            Ok(Some(stored)) => stored,
+            _ => current.clone(),
+        };
+        stored.auth = current.auth.clone();
+        if let Err(err) = credentials::store(&stored).await {
+            log::warn!("Could not save refreshed credentials: {err}");
+        }
+        self.imp().credentials.replace(Some(current));
+        self.emit_by_name::<()>("credentials-changed", &[]);
     }
 
     async fn store_credentials(&self, credentials: Credentials) {

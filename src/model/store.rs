@@ -2,9 +2,8 @@ use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 
 use futures_util::StreamExt;
-use gtk::glib;
-use gtk::glib::subclass::prelude::*;
-use gtk::prelude::*;
+use gio::prelude::*;
+use glib::subclass::prelude::*;
 use serde_json::json;
 
 use super::entity::Entity;

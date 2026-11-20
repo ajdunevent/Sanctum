@@ -3,9 +3,7 @@
 
 use std::collections::HashMap;
 
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
+use gio::prelude::*;
 
 const TIMEOUT_MS: i32 = 5_000;
 

@@ -77,3 +77,10 @@ configure_file(
   install: true,
   install_dir: datadir / 'dbus-1' / 'services',
 )
+configure_file(
+  input: '@0@.Service.service.in'.format(base_id),
+  output: '@0@.Service.service'.format(application_id),
+  configuration: service_conf,
+  install: true,
+  install_dir: datadir / 'dbus-1' / 'services',
+)

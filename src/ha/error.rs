@@ -55,7 +55,7 @@ impl std::error::Error for Error {}
 
 impl Error {
     /// Converts a transport error, reporting a rejected certificate for `uri` when there was one.
-    pub fn from_transport(err: gtk::glib::Error, uri: Option<gtk::glib::Uri>) -> Self {
+    pub fn from_transport(err: glib::Error, uri: Option<glib::Uri>) -> Self {
         uri.map(|uri| super::trust::host_key(&uri))
             .and_then(|host| super::trust::take_rejected(&host))
             .map_or_else(
@@ -65,8 +65,8 @@ impl Error {
     }
 }
 
-impl From<gtk::glib::Error> for Error {
-    fn from(err: gtk::glib::Error) -> Self {
+impl From<glib::Error> for Error {
+    fn from(err: glib::Error) -> Self {
         Self::Network(err.message().to_owned())
     }
 }

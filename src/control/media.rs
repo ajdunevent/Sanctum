@@ -52,7 +52,7 @@ pub fn bus_name(player: &str) -> String {
     }
 }
 
-async fn players(session: &gtk::gio::DBusConnection) -> Vec<String> {
+async fn players(session: &gio::DBusConnection) -> Vec<String> {
     dbus::names(session)
         .await
         .into_iter()
@@ -92,7 +92,7 @@ pub async fn session() -> Option<Session> {
         }
         let metadata = props
             .get("Metadata")
-            .and_then(|value| value.get::<HashMap<String, gtk::glib::Variant>>())
+            .and_then(|value| value.get::<HashMap<String, glib::Variant>>())
             .unwrap_or_default();
         let text = |key: &str| metadata.get(key).and_then(|value| value.get::<String>());
         let artist = metadata

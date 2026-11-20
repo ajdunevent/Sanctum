@@ -6,17 +6,14 @@ use adw::subclass::prelude::*;
 use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
-use crate::agent::Agent;
 use crate::config::{APP_ID, VERSION};
 use crate::ha;
 use crate::model::Store;
-use crate::notify::{self, Click, Notifier};
-use crate::reregister::Reregistration;
+use crate::notify::{self, Click};
 use crate::server_settings::ServerSettings;
+use crate::service::{REGISTRATION_NOTIFICATION, window_action};
+use crate::service_link::ServiceLink;
 use crate::ui::{AssistWindow, PreferencesDialog, Window};
-
-/// The ID of the notification sent when automatic registration gives up.
-const REGISTRATION_NOTIFICATION: &str = "registration";
 
 mod imp {
     use super::*;
@@ -26,12 +23,12 @@ mod imp {
         pub server: std::rc::Rc<ServerSettings>,
         pub client: ha::Client,
         pub store: Store,
-        pub agent: Agent,
-        pub notifier: std::cell::OnceCell<std::rc::Rc<Notifier>>,
-        pub reregistration: Reregistration,
+        pub service: Rc<ServiceLink>,
+        /// Exported so the service can tell whether a registration alert
+        /// would be seen.
+        pub window_shown: gio::SimpleAction,
         pub window: glib::WeakRef<Window>,
         pub assist_window: glib::WeakRef<AssistWindow>,
-        pub background_hold: RefCell<Option<gio::ApplicationHoldGuard>>,
         /// Closes a hidden main window, which frees the page.
         pub unload_timer: RefCell<Option<glib::SourceId>>,
         pub started: Cell<bool>,
@@ -45,18 +42,22 @@ mod imp {
             let store = Store::new(&client);
             let settings = gio::Settings::new(APP_ID);
             let server = ServerSettings::new(&settings);
-            let agent = Agent::new(&client, &settings, &server);
+            let window_shown = gio::SimpleAction::new_stateful(
+                window_action::WINDOW_SHOWN,
+                None,
+                &false.to_variant(),
+            );
+            window_shown.connect_activate(|_, _| {});
+            window_shown.connect_change_state(|_, _| {});
             Self {
                 settings,
                 server,
                 client,
                 store,
-                agent,
-                notifier: Default::default(),
-                reregistration: Default::default(),
+                service: ServiceLink::new(),
+                window_shown,
                 window: Default::default(),
                 assist_window: Default::default(),
-                background_hold: Default::default(),
                 unload_timer: Default::default(),
                 started: Default::default(),
                 loading: Default::default(),
@@ -106,7 +107,7 @@ mod imp {
         fn startup(&self) {
             self.parent_startup();
             let obj = self.obj();
-            let _ = self.notifier.set(Notifier::new(&*obj, &self.client));
+            obj.add_action(&self.window_shown);
             gtk::Window::set_default_icon_name(APP_ID);
             obj.setup_actions();
             obj.setup_settings();
@@ -142,7 +143,7 @@ mod imp {
                 obj.start();
                 obj.present_assist(options.contains("voice"));
             } else if options.contains("background") {
-                obj.start();
+                // Autostart entries from before 1.1.0 run this.
                 obj.start_services();
             } else {
                 obj.activate();
@@ -187,72 +188,33 @@ impl Application {
         &self.imp().client
     }
 
-    pub fn agent(&self) -> &Agent {
-        &self.imp().agent
+    pub fn service(&self) -> &Rc<ServiceLink> {
+        &self.imp().service
     }
 
-    /// Sensors and other background work. Deferred so a cold `--assist` stays
-    /// fast; starts with the main window or when running in the background.
+    /// Sensors and notifications run in `sanctum-service`.
     fn start_services(&self) {
+        self.service().watch();
         if self.is_signed_in() && self.is_companion() {
-            self.agent().start();
-            self.notifier().start();
+            self.service().ensure();
         }
     }
 
     pub fn is_companion(&self) -> bool {
-        self.server().string("app-mode") == "companion"
+        self.imp().server.is_companion()
     }
 
     pub async fn use_as_companion(&self, device_name: &str) -> ha::Result<()> {
-        let registration = self.request_registration(device_name).await?;
-        self.clear_registration_alert();
+        let registration = ha::registration::register_device(self.client(), device_name).await?;
         self.client().replace_registration(registration).await;
+        self.withdraw_notification(REGISTRATION_NOTIFICATION);
         let server = self.server();
         let _ = server.set_string("device-name", device_name);
         let _ = server.set_string("app-mode", "companion");
         self.sync_endpoints();
-        self.start_services();
+        self.service().watch();
+        self.service().reload();
         Ok(())
-    }
-
-    async fn request_registration(
-        &self,
-        device_name: &str,
-    ) -> ha::Result<ha::credentials::Registration> {
-        let client = self.client();
-        let credentials = client.credentials().ok_or(ha::Error::NotConnected)?;
-        let base = ha::ServerUrl::parse(&client.active_url()).unwrap_or(credentials.server);
-        let token = client.fresh_access_token().await?;
-        let device = ha::device::DeviceInfo::detect(device_name);
-        ha::registration::register(&base, &token, &credentials.device_id, &device).await
-    }
-
-    /// For a webhook or notification subscription that Home Assistant no
-    /// longer recognizes.
-    pub fn registration_lost(&self) {
-        if !self.is_signed_in() || !self.is_companion() {
-            return;
-        }
-        let Some(generation) = self.imp().reregistration.begin() else {
-            return;
-        };
-        log::warn!("Home Assistant no longer has this device's registration; registering again");
-        let app = self.clone();
-        glib::spawn_future_local(async move {
-            let client = app.client().clone();
-            let name = app.server().string("device-name");
-            let registration = app
-                .imp()
-                .reregistration
-                .run(generation, &client, || app.request_registration(&name))
-                .await;
-            match registration {
-                Some(registration) => app.apply_registration(registration).await,
-                None if app.imp().reregistration.gave_up() => app.show_registration_alert(),
-                None => {}
-            }
-        });
     }
 
     /// One attempt for the Register Again button, with errors shown as a
@@ -262,10 +224,11 @@ impl Application {
         let app = self.clone();
         glib::spawn_future_local(async move {
             let name = app.server().string("device-name");
-            match app.request_registration(&name).await {
+            match ha::registration::register_device(app.client(), &name).await {
                 Ok(registration) => {
-                    app.clear_registration_alert();
-                    app.apply_registration(registration).await;
+                    app.client().replace_registration(registration).await;
+                    app.withdraw_notification(REGISTRATION_NOTIFICATION);
+                    app.service().reload();
                 }
                 Err(err) => {
                     log::warn!("Could not register the device again: {err}");
@@ -277,47 +240,13 @@ impl Application {
         });
     }
 
-    async fn apply_registration(&self, registration: ha::credentials::Registration) {
-        self.client().replace_registration(registration).await;
-        self.agent().resend_all();
-        self.notifier().resubscribe();
-    }
-
     pub fn registration_alert(&self) -> bool {
-        self.imp().reregistration.gave_up()
-    }
-
-    fn show_registration_alert(&self) {
-        let window = self.imp().window.upgrade();
-        if let Some(window) = &window {
-            window.set_registration_alert(true);
-        }
-        if window.is_some_and(|window| window.is_visible()) {
-            return;
-        }
-        let notification = gio::Notification::new(&gettext("Not Registered in Home Assistant"));
-        notification.set_body(Some(&gettext(
-            "Notifications and sensor updates are off until this device is registered again.",
-        )));
-        notification.add_button(&gettext("Register Again"), "app.register-again");
-        self.send_notification(Some(REGISTRATION_NOTIFICATION), &notification);
-    }
-
-    /// Also stops automatic attempts.
-    fn clear_registration_alert(&self) {
-        self.imp().reregistration.cancel();
-        self.withdraw_notification(REGISTRATION_NOTIFICATION);
-        if let Some(window) = self.imp().window.upgrade() {
-            window.set_registration_alert(false);
-        }
+        self.service().registration_alert()
     }
 
     /// With `remove`, the device is deleted from Home Assistant, which needs
     /// an administrator.
     pub async fn use_as_frontend(&self, remove: bool) -> ha::Result<()> {
-        self.clear_registration_alert();
-        self.agent().pause();
-        self.notifier().pause();
         let client = self.client().clone();
         let removed = if remove {
             match client.credentials() {
@@ -332,11 +261,9 @@ impl Application {
         client.set_registration(None).await;
         let _ = self.server().set_string("app-mode", "frontend");
         self.sync_endpoints();
+        self.withdraw_notification(REGISTRATION_NOTIFICATION);
+        self.service().reload();
         removed.map(drop)
-    }
-
-    fn notifier(&self) -> &std::rc::Rc<Notifier> {
-        self.imp().notifier.get().expect("created in startup")
     }
 
     /// Notification clicks: `entityId:` targets open details, links to the
@@ -448,14 +375,13 @@ impl Application {
         self.imp().loading.get()
     }
 
-    /// Loads stored credentials and connects. Builds no UI, so `--assist` and
-    /// `--background` stay fast.
+    /// Loads stored credentials and connects. Builds no UI, so `--assist`
+    /// stays fast.
     fn start(&self) {
         let imp = self.imp();
         if imp.started.replace(true) {
             return;
         }
-        self.update_background_hold();
         if self.settings().boolean("run-in-background") {
             self.sync_background_portal();
         }
@@ -529,6 +455,9 @@ impl Application {
     /// A page kept loaded is released once the window has been hidden for the
     /// chosen time.
     fn on_window_visibility(&self, window: &Window) {
+        self.imp()
+            .window_shown
+            .set_state(&window.is_visible().to_variant());
         if let Some(timer) = self.imp().unload_timer.take() {
             timer.remove();
         }
@@ -588,42 +517,27 @@ impl Application {
             companion,
         );
         self.connect_with(credentials);
-        self.update_background_hold();
-        self.start_services();
+        self.service().watch();
+        if companion {
+            self.service().reload();
+        }
         Ok(())
     }
 
     /// Endpoints go first so the first attempt uses the right address.
     fn connect_with(&self, credentials: ha::Credentials) {
-        self.client()
-            .set_endpoints(self.endpoints(credentials.registration.as_ref()));
+        self.client().set_endpoints(
+            self.imp()
+                .server
+                .endpoints(credentials.registration.as_ref()),
+        );
         self.client().set_credentials(Some(credentials));
-    }
-
-    fn endpoints(
-        &self,
-        registration: Option<&ha::credentials::Registration>,
-    ) -> ha::endpoints::Endpoints {
-        let settings = self.server();
-        let url = |key: &str| ha::ServerUrl::parse(&settings.string(key)).ok();
-        ha::endpoints::Endpoints {
-            internal: url("internal-url"),
-            external: url("external-url"),
-            remote_ui: registration
-                .and_then(|registration| registration.remote_ui_url.as_deref())
-                .and_then(|value| ha::ServerUrl::parse(value).ok()),
-            home_networks: settings
-                .strv("home-networks")
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-        }
     }
 
     fn sync_endpoints(&self) {
         let registration = self.client().credentials().and_then(|c| c.registration);
         self.client()
-            .set_endpoints(self.endpoints(registration.as_ref()));
+            .set_endpoints(self.imp().server.endpoints(registration.as_ref()));
     }
 
     pub fn trust_certificate(&self, info: &ha::trust::CertificateInfo) {
@@ -643,8 +557,6 @@ impl Application {
 
     pub async fn sign_out(&self) {
         let client = self.client();
-        self.clear_registration_alert();
-        self.agent().pause();
         if let Some(credentials) = client.credentials() {
             client.set_credentials(None);
             ha::auth::revoke(&credentials.server, &credentials.auth).await;
@@ -653,19 +565,8 @@ impl Application {
             }
         }
         self.forget_server();
-        self.update_background_hold();
-    }
-
-    fn update_background_hold(&self) {
-        let imp = self.imp();
-        let wanted = self.settings().boolean("run-in-background") && self.is_signed_in();
-        let held = imp.background_hold.borrow().is_some();
-        if wanted && !held {
-            imp.background_hold.replace(Some(self.hold()));
-            self.start_services();
-        } else if !wanted && held {
-            imp.background_hold.replace(None);
-        }
+        self.withdraw_notification(REGISTRATION_NOTIFICATION);
+        self.service().reload();
     }
 
     fn sync_background_portal(&self) {
@@ -782,10 +683,7 @@ impl Application {
             glib::clone!(
                 #[weak(rename_to = app)]
                 self,
-                move |_, _| {
-                    app.update_background_hold();
-                    app.sync_background_portal();
-                }
+                move |_, _| app.sync_background_portal()
             ),
         );
         settings.connect_changed(
@@ -794,14 +692,6 @@ impl Application {
                 #[weak(rename_to = app)]
                 self,
                 move |_, _| app.sync_background_portal()
-            ),
-        );
-        settings.connect_changed(
-            Some("server"),
-            glib::clone!(
-                #[weak(rename_to = app)]
-                self,
-                move |_, _| app.update_background_hold()
             ),
         );
         let weak = self.downgrade();
@@ -857,8 +747,11 @@ impl Application {
     fn setup_actions(&self) {
         let quit = gio::ActionEntry::builder("quit")
             .activate(|app: &Self, _, _| {
-                app.imp().background_hold.replace(None);
-                app.quit();
+                let app = app.clone();
+                glib::spawn_future_local(async move {
+                    app.service().quit().await;
+                    app.quit();
+                });
             })
             .build();
         let preferences = gio::ActionEntry::builder("preferences")
@@ -905,9 +798,23 @@ impl Application {
                     return;
                 };
                 app.start();
-                app.notifier()
-                    .send_action(notify::action_event(&action, &tag, &title, &message));
+                // The service may have registered the device again since the
+                // app read the credentials.
+                let hold = app.hold();
+                let app = app.clone();
+                glib::spawn_future_local(async move {
+                    app.client().load_stored_registration().await;
+                    notify::send_action(
+                        &app,
+                        app.client(),
+                        notify::action_event(&action, &tag, &title, &message),
+                    );
+                    drop(hold);
+                });
             })
+            .build();
+        let stop_playback = gio::ActionEntry::builder(window_action::STOP_PLAYBACK)
+            .activate(|_: &Self, _, _| crate::voice::stop_playback())
             .build();
         self.add_action_entries([
             quit,
@@ -919,6 +826,7 @@ impl Application {
             register_again,
             open_click,
             notification_action,
+            stop_playback,
         ]);
 
         self.set_accels_for_action("app.quit", &["<Control>q"]);

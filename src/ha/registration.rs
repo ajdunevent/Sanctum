@@ -7,6 +7,15 @@ use super::error::{Error, Result};
 use super::http;
 use super::server::ServerUrl;
 
+/// Registers the signed-in device again, at the address in use.
+pub async fn register_device(client: &Client, device_name: &str) -> Result<Registration> {
+    let credentials = client.credentials().ok_or(Error::NotConnected)?;
+    let base = ServerUrl::parse(&client.active_url()).unwrap_or(credentials.server);
+    let token = client.fresh_access_token().await?;
+    let device = DeviceInfo::detect(device_name);
+    register(&base, &token, &credentials.device_id, &device).await
+}
+
 /// Registers this install with the `mobile_app` integration, which creates the
 /// device in Home Assistant and returns the webhook used for sensor updates.
 pub async fn register(

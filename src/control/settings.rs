@@ -4,8 +4,7 @@
 
 use std::collections::HashMap;
 
-use gtk::glib;
-use gtk::glib::prelude::*;
+use glib::prelude::*;
 
 use crate::agent::dbus;
 

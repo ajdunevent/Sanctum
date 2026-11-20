@@ -4,9 +4,7 @@
 use std::collections::HashMap;
 
 use futures_util::StreamExt;
-use gtk::gio;
-use gtk::glib;
-use gtk::glib::variant::ToVariant;
+use glib::variant::ToVariant;
 
 const PORTAL_BUS: &str = "org.freedesktop.portal.Desktop";
 const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
@@ -17,7 +15,7 @@ pub struct Granted {
     pub autostart: bool,
 }
 
-/// Autostart launches `sanctum --background`.
+/// Autostart launches `sanctum-service`.
 pub async fn request(autostart: bool, reason: &str) -> Result<Granted, glib::Error> {
     let connection = gio::bus_get_future(gio::BusType::Session).await?;
     let sender = connection
@@ -42,7 +40,7 @@ pub async fn request(autostart: bool, reason: &str) -> Result<Granted, glib::Err
     options.insert("handle_token", &token);
     options.insert("reason", reason);
     options.insert("autostart", autostart);
-    options.insert("commandline", vec!["sanctum", "--background"]);
+    options.insert("commandline", vec!["sanctum-service"]);
     options.insert("dbus-activatable", false);
 
     connection

@@ -14,6 +14,7 @@ src/agent/network.rs
 src/agent/sensor.rs
 src/agent/system.rs
 src/application.rs
+src/bin/sanctum-service.rs
 src/control/catalog.rs
 src/furios.rs
 src/ha/auth.rs
@@ -22,6 +23,7 @@ src/ha/webhook.rs
 src/main.rs
 src/model/present.rs
 src/notify.rs
+src/service.rs
 src/ui/assist_window.rs
 src/ui/assistant_button.rs
 src/ui/certificate.rs

@@ -1,7 +1,6 @@
 //! The sensors Sanctum can report and the readings sources produce for them.
 
 use gettextrs::gettext;
-use gtk::glib;
 use serde_json::{Map, Value, json};
 
 use crate::control::sandbox::Permission;

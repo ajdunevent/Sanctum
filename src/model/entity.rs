@@ -1,8 +1,7 @@
 use std::cell::{Cell, RefCell};
 
-use gtk::glib;
-use gtk::glib::subclass::prelude::*;
-use gtk::prelude::*;
+use gio::prelude::*;
+use glib::subclass::prelude::*;
 use serde_json::Value;
 
 use super::present;

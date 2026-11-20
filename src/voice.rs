@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use futures_channel::mpsc;
 use gst::prelude::*;
-use gtk::glib;
 
 type PlaybackDone = Box<dyn FnOnce(bool)>;
 

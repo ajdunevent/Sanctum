@@ -5,9 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gtk::gio;
-use gtk::glib;
-use gtk::glib::prelude::*;
+use glib::prelude::*;
 use serde_json::{Value, json};
 
 use super::dbus::{self, PropertyMap};

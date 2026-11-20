@@ -1,9 +1,7 @@
 //! Volume is read and set with `pactl` over the PulseAudio socket that voice
 //! uses.
 
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib;
+use gio::prelude::*;
 
 use super::{Switch, output};
 

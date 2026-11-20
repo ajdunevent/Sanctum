@@ -51,7 +51,7 @@ Sanctum shows the Home Assistant frontend and adds the native companion features
 | --- | --- |
 | `--assist`, `-a` | Open only the Assist window |
 | `--voice` | With `--assist`, start listening |
-| `--background`, `-b` | Start without a window (used by Start at Login) |
+| `--background`, `-b` | Start the background service without a window |
 
 ## Device commands
 

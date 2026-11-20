@@ -37,7 +37,7 @@ cargo_build = custom_target(
   'cargo-build',
   build_by_default: true,
   build_always_stale: true,
-  output: meson.project_name(),
+  output: [meson.project_name(), 'sanctum-service'],
   console: true,
   install: true,
   install_dir: bindir,
@@ -51,7 +51,11 @@ cargo_build = custom_target(
     '&&',
     'cp',
     'src' / rust_target / meson.project_name(),
-    '@OUTPUT@',
+    '@OUTPUT0@',
+    '&&',
+    'cp',
+    'src' / rust_target / 'sanctum-service',
+    '@OUTPUT1@',
   ],
 )
 

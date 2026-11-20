@@ -79,7 +79,7 @@ fn attributes(server: &ServerUrl) -> HashMap<&str, &str> {
     HashMap::from([(ATTR_SERVER, server.as_str())])
 }
 
-fn storage_error(err: gtk::glib::Error) -> Error {
+fn storage_error(err: glib::Error) -> Error {
     Error::Storage(err.message().to_owned())
 }
 

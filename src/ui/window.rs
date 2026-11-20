@@ -376,12 +376,22 @@ impl Window {
         window.build_web_view(app);
         window.connect_sources(app);
         window.update_page();
-        window.set_registration_alert(app.registration_alert());
+        window.follow_registration_alert(app);
         window
     }
 
-    pub fn set_registration_alert(&self, shown: bool) {
-        self.imp().registration_banner.set_revealed(shown);
+    fn follow_registration_alert(&self, app: &Application) {
+        let banner = self.imp().registration_banner.get();
+        banner.set_revealed(app.registration_alert());
+        let service = app.service().clone();
+        let handler = service.connect_changed(glib::clone!(
+            #[weak]
+            app,
+            #[weak]
+            banner,
+            move || banner.set_revealed(app.registration_alert())
+        ));
+        self.connect_destroy(move |_| service.disconnect(handler));
     }
 
     fn build_web_view(&self, app: &Application) {

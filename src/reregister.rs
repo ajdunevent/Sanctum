@@ -5,8 +5,6 @@
 use std::cell::Cell;
 use std::time::Duration;
 
-use gtk::glib;
-
 use crate::ha::{self, ConnectionState};
 
 /// The wait before each attempt. After the last attempt fails, the user is

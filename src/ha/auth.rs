@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use futures_channel::oneshot;
-use gtk::glib;
 use serde::Deserialize;
 use soup::prelude::*;
 
