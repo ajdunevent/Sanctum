@@ -142,7 +142,7 @@ make_bundle() {
         "$finish"/files/share/pkgconfig "$finish"/files/share/doc \
         "$finish"/files/share/man
     # Debug info makes the bundle several times larger and slow to compress.
-    flatpak build "$finish" strip --strip-debug /app/bin/sanctum
+    flatpak build "$finish" strip --strip-debug /app/bin/sanctum /app/bin/sanctum-service
 
     local finish_args
     mapfile -t finish_args < <(manifest_value finish-args)

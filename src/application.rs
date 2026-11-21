@@ -484,8 +484,16 @@ impl Application {
         self.imp().unload_timer.replace(Some(timer));
     }
 
-    /// `voice` listens even when the preference is off.
+    /// `voice` listens even when the preference is off. Closes the window
+    /// when it has focus, so the assistant button toggles it.
     pub fn present_assist(&self, voice: bool) {
+        if let Some(window) = self.imp().assist_window.upgrade()
+            && window.is_visible()
+            && window.is_active()
+        {
+            window.close();
+            return;
+        }
         let window = self.imp().assist_window.upgrade().unwrap_or_else(|| {
             let window = AssistWindow::new(self);
             self.imp().assist_window.set(Some(&window));
