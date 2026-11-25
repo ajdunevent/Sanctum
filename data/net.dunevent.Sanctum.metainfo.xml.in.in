@@ -72,6 +72,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.1.2" date="2026-11-25">
+      <description>
+        <p>Sanctum shows its connection status in the desktop's list of apps running in the background.</p>
+      </description>
+    </release>
     <release version="1.1.1" date="2026-11-20">
       <description>
         <p>Calling Assist again while it is open and focused closes it, so the assistant button opens and closes Assist.</p>

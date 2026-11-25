@@ -34,6 +34,10 @@ impl Reregistration {
         self.gave_up.get()
     }
 
+    pub fn running(&self) -> bool {
+        self.running.get()
+    }
+
     /// The generation for `run`, or `None` when a loop is already running or
     /// the user was already told.
     pub fn begin(&self) -> Option<u64> {

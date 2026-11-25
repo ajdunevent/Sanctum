@@ -83,6 +83,13 @@ pub struct Service {
     /// Bumped by each reload and by `stop`; an older reload's result is
     /// dropped.
     generation: Cell<u64>,
+    /// The last message sent to the Background portal.
+    status: RefCell<String>,
+    /// Set when the portal rejected a status, so no more are sent.
+    status_unsupported: Rc<Cell<bool>>,
+    /// Set from a lost connection until the next one, so each retry's brief
+    /// Connecting state does not change the status.
+    reconnecting: Cell<bool>,
 }
 
 impl Service {
@@ -113,6 +120,9 @@ impl Service {
             hold: RefCell::default(),
             window_app: Cell::new(false),
             generation: Cell::new(0),
+            status: RefCell::default(),
+            status_unsupported: Rc::default(),
+            reconnecting: Cell::new(false),
         });
         let weak = Rc::downgrade(&this);
         let notifier = Notifier::new(app, &this.client, move |event| {
@@ -158,6 +168,24 @@ impl Service {
                 }
             },
         );
+
+        let weak = Rc::downgrade(self);
+        self.client.connect_state_notify(move |client| {
+            if let Some(this) = weak.upgrade() {
+                match client.state() {
+                    ha::ConnectionState::Disconnected => this.reconnecting.set(true),
+                    ha::ConnectionState::Connecting => {}
+                    _ => this.reconnecting.set(false),
+                }
+                this.update_status();
+            }
+        });
+        let weak = Rc::downgrade(self);
+        self.client.connect_location_name_notify(move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.update_status();
+            }
+        });
 
         let sensors = self.sensors.clone();
         self.agent.connect_changed(move |agent| {
@@ -379,6 +407,7 @@ impl Service {
             return;
         };
         log::warn!("Home Assistant no longer has this device's registration; registering again");
+        self.update_status();
         let this = self.clone();
         glib::spawn_future_local(async move {
             let name = this.server.get().string("device-name");
@@ -397,6 +426,7 @@ impl Service {
                 None if this.reregistration.gave_up() => this.show_alert().await,
                 None => {}
             }
+            this.update_status();
         });
     }
 
@@ -421,7 +451,59 @@ impl Service {
         if self.alert.state().and_then(|s| s.get::<bool>()) == Some(true) {
             self.alert.set_state(&false.to_variant());
             self.app.withdraw_notification(REGISTRATION_NOTIFICATION);
+            self.update_status();
         }
+    }
+
+    /// The line shown for Sanctum in the desktop's list of background apps.
+    fn status_message(&self) -> Option<String> {
+        if self.reregistration.gave_up() {
+            return Some(gettext("Not registered in Home Assistant"));
+        }
+        let name = self.client.location_name();
+        let name = if name.is_empty() {
+            gettext("Home Assistant")
+        } else {
+            name
+        };
+        let template = if self.reregistration.running() {
+            gettext("Registering again with {}")
+        } else {
+            match self.client.state() {
+                ha::ConnectionState::Idle => return None,
+                ha::ConnectionState::Connecting | ha::ConnectionState::Disconnected
+                    if self.reconnecting.get() =>
+                {
+                    gettext("Reconnecting to {}")
+                }
+                ha::ConnectionState::Connecting | ha::ConnectionState::Disconnected => {
+                    gettext("Connecting to {}")
+                }
+                ha::ConnectionState::Connected => gettext("Connected to {}"),
+                ha::ConnectionState::AuthFailed => gettext("{} rejected the sign-in"),
+            }
+        };
+        Some(template.replace("{}", &name))
+    }
+
+    fn update_status(&self) {
+        if self.status_unsupported.get() {
+            return;
+        }
+        let Some(message) = self.status_message() else {
+            return;
+        };
+        if *self.status.borrow() == message {
+            return;
+        }
+        self.status.replace(message.clone());
+        let unsupported = self.status_unsupported.clone();
+        glib::spawn_future_local(async move {
+            if let Err(err) = crate::background::set_status(&message).await {
+                log::info!("Could not set the background status: {err}");
+                unsupported.set(true);
+            }
+        });
     }
 
     /// Asks the window app without starting it.

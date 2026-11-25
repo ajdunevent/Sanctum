@@ -82,3 +82,28 @@ pub async fn request(autostart: bool, reason: &str) -> Result<Granted, glib::Err
         autostart: flag("autostart"),
     })
 }
+
+/// The portal requires fewer than 96 characters.
+const STATUS_LIMIT: usize = 95;
+
+/// Sets the line shown for Sanctum in the desktop's list of apps running in
+/// the background. Needs version 2 of the portal.
+pub async fn set_status(message: &str) -> Result<(), glib::Error> {
+    let message: String = message.chars().take(STATUS_LIMIT).collect();
+    let connection = gio::bus_get_future(gio::BusType::Session).await?;
+    let options = glib::VariantDict::new(None);
+    options.insert("message", &message);
+    connection
+        .call_future(
+            Some(PORTAL_BUS),
+            PORTAL_PATH,
+            "org.freedesktop.portal.Background",
+            "SetStatus",
+            Some(&glib::Variant::tuple_from_iter([options.end()])),
+            None,
+            gio::DBusCallFlags::NONE,
+            -1,
+        )
+        .await
+        .map(drop)
+}
